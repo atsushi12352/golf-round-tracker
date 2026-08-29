@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<title>ラウンド振り返り - ゴルフ記録</title>
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <div class="h-sub"><a href="index.html" style="color:#fff;opacity:.85;">&larr; ホーム</a> ・ <span id="headerSub"></span></div>
+    <div class="h-title">ラウンド振り返り</div>
+    <div class="hero">
+      <span class="score" id="heroScore">-</span>
+      <span class="topar" id="heroToPar"></span>
+    </div>
+    <div class="hero-chips" id="heroChips"></div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>スコアロス要因 TOP3 と処方</h2>
+      <div id="lossList"></div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="card">
+      <h2>ホールタイプ別(平均の±)</h2>
+      <div class="kpi-grid" id="typeGrid" style="gap:8px;"></div>
+      <div class="hm-note" style="margin-top:8px;">1ラウンドではブレが大きい指標です。傾向は累積画面で。</div>
+    </div>
+
+    <div class="card">
+      <h2>距離帯別パット成績</h2>
+      <table>
+        <thead><tr><th>距離帯</th><th>本数</th><th>カップイン率</th><th>3パット関与</th></tr></thead>
+        <tbody id="puttDistRows"></tbody>
+      </table>
+    </div>
+
+    <div class="card">
+      <h2>ミス傾向ヒートマップ</h2>
+      <div class="seg-row" id="segRow"></div>
+      <div class="club-pick" id="clubPick"></div>
+      <div class="hm-block" style="margin-top:0;">
+        <div class="hm-title"><span id="shotTitle">ショット</span><small id="shotN"></small></div>
+        <div class="hm-wrap">
+          <div class="hm-axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+          <div class="hm-grid" id="shotGrid"></div>
+        </div>
+        <div class="hm-axis-x"><span></span><span>左</span><span>中</span><span>右</span></div>
+        <div class="hm-insight" id="shotInsight"></div>
+        <div class="hm-note" id="shotNote"></div>
+      </div>
+      <div class="hm-block">
+        <div class="hm-title">パットの外し方<small id="puttN"></small></div>
+        <div class="hm-wrap">
+          <div class="hm-axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+          <div class="hm-grid" id="puttGridHm"></div>
+        </div>
+        <div class="hm-axis-x"><span></span><span>左</span><span>中</span><span>右</span></div>
+        <div class="hm-insight" id="puttInsight"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ホール別</h2>
+      <table>
+        <thead><tr><th>H</th><th>Par</th><th>スコア</th><th>±</th><th>パット</th><th>メモ</th></tr></thead>
+        <tbody id="holeRows"></tbody>
+      </table>
+    </div>
+  </main>
+</div>
+
+<script type="module" src="js/review.js"></script>
+<script type="module" src="js/sw-register.js"></script>
+</body>
+</html>

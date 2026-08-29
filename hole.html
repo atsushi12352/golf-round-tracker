@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<title>ホール入力 - ゴルフ記録</title>
+</head>
+<body>
+<div class="app">
+  <header class="hole-header">
+    <div class="hole-info">
+      <span class="hole-num">HOLE <span id="holeNum">1</span></span>
+      <button class="hole-par-btn" id="parBtn">Par <span id="holePar">4</span></button>
+    </div>
+    <div class="stroke-now">
+      <div>
+        <div class="label">次のショット</div>
+        <div class="num"><span id="strokeNum">1</span>打目</div>
+      </div>
+      <button class="menu-btn" id="menuBtn">⋯</button>
+    </div>
+  </header>
+
+  <div class="log-bar">
+    <div class="log-scroll" id="logScroll"><span class="log-empty">まだ記録はありません</span></div>
+    <button class="undo-btn" id="undoBtn">1打戻す</button>
+  </div>
+
+  <main class="hole-main">
+    <div class="guide" id="guide"><b>クラブ</b>を選んで、結果のマスをタップ</div>
+
+    <div class="edit-banner" id="editBanner">
+      <span id="editBannerText">修正中</span>
+      <button id="cancelEdit">修正をやめる</button>
+    </div>
+
+    <div class="lie-row" id="lieRow">
+      <span class="lie-label">ライ</span>
+      <div class="lie-chips" id="lieChips"></div>
+    </div>
+
+    <div id="gridMode">
+      <div class="grid-wrap">
+        <div class="axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+        <div class="grid9" id="grid9"></div>
+      </div>
+      <div class="axis-x" style="margin-top:4px;">
+        <span>.</span><span>左</span><span>中</span><span>右</span>
+      </div>
+      <div class="special-row" style="margin-top:10px;">
+        <button class="sp-btn ob" data-special="OB左">OB左<small style="font-weight:500;">+1罰</small></button>
+        <button class="sp-btn ob" data-special="OB右">OB右<small style="font-weight:500;">+1罰</small></button>
+        <button class="sp-btn miss" data-special="チョロ/ダフリ">チョロ<br>ダフリ</button>
+        <button class="sp-btn in" data-special="チップイン">チップ<br>イン</button>
+      </div>
+    </div>
+
+    <div id="puttMode" style="display:none;">
+      <div class="lie-row" id="puttDistRow" style="margin-bottom:8px;">
+        <span class="lie-label">距離</span>
+        <div class="lie-chips" id="puttDistChips" style="grid-template-columns: repeat(4, 1fr);"></div>
+      </div>
+      <div class="grid-wrap">
+        <div class="axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+        <div class="grid9" id="puttGrid"></div>
+      </div>
+      <div class="axis-x" style="margin-top:4px;">
+        <span>.</span><span>左</span><span>中</span><span>右</span>
+      </div>
+      <button class="cupin-btn" id="cupinBtn" style="width:100%;margin-top:10px;">カップイン</button>
+    </div>
+  </main>
+
+  <div class="club-bar">
+    <div class="club-label">クラブ</div>
+    <div class="club-grid" id="clubGrid"></div>
+  </div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2 id="sheetTitle">ホールアウト</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="v" id="statScore">-</div><div class="k">スコア</div></div>
+      <div class="stat"><div class="v" id="statPutts">-</div><div class="k">パット</div></div>
+      <div class="stat"><div class="v" id="statPenalty">-</div><div class="k">ペナルティ</div></div>
+    </div>
+    <div class="shot-list" id="shotList"></div>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="nextHole">次のホールへ</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="menuOverlay">
+  <div class="sheet">
+    <h2>メニュー</h2>
+    <div class="sheet-btns">
+      <button class="sheet-btn danger" id="endEarlyBtn">ここまでで終了して保存</button>
+      <button class="sheet-btn ghost" id="closeMenuBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="endConfirmOverlay">
+  <div class="sheet">
+    <h2>ラウンドを終了しますか?</h2>
+    <p class="sheet-text" id="endConfirmText"></p>
+    <div class="sheet-btns">
+      <button class="sheet-btn danger" id="endConfirmYes">終了して保存</button>
+      <button class="sheet-btn ghost" id="endConfirmNo">戻る</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/holeInput.js"></script>
+<script type="module" src="js/sw-register.js"></script>
+</body>
+</html>

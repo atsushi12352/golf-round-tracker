@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>ラウンド振り返りモック</title>
+<style>
+  :root {
+    --green: #0f7b4d;
+    --green-dark: #0a5c39;
+    --green-pale: #e6f4ee;
+    --ink: #0b0b0b;
+    --sub: #52514e;
+    --muted: #898781;
+    --line: #e1e0d9;
+    --bg: #f4f7f5;
+    --card: #fcfcfb;
+    --loss: #c65a35;
+    --over: #b0421f;
+    --under: #1c5cab;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg); color: var(--ink);
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  .app { max-width: 480px; margin: 0 auto; }
+
+  header {
+    background: var(--green); color: #fff;
+    padding: calc(14px + env(safe-area-inset-top)) 18px 18px;
+  }
+  .h-sub { font-size: 12px; opacity: .85; }
+  .h-title { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .hero { display: flex; align-items: baseline; gap: 10px; margin-top: 10px; }
+  .hero .score { font-size: 52px; font-weight: 700; line-height: 1; }
+  .hero .topar { font-size: 18px; font-weight: 700; opacity: .9; }
+  .hero-chips { display: flex; gap: 6px; margin-top: 10px; flex-wrap: wrap; }
+  .hero-chip {
+    font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+    background: rgba(255,255,255,.16);
+  }
+
+  main { padding: 12px 12px 0; display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px;
+  }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 700; margin-bottom: 10px; letter-spacing: .02em; }
+
+  /* ---- loss top3 ---- */
+  .loss-item { padding: 8px 0; }
+  .loss-item + .loss-item { border-top: 1px solid var(--line); }
+  .loss-head { display: flex; align-items: baseline; gap: 8px; }
+  .loss-rank { font-size: 12px; font-weight: 700; color: var(--muted); width: 16px; }
+  .loss-name { font-size: 14px; font-weight: 700; flex: 1; }
+  .loss-val { font-size: 14px; font-weight: 700; color: var(--loss); font-variant-numeric: tabular-nums; }
+  .loss-bar-track { height: 8px; background: var(--bg); border-radius: 4px; margin: 7px 0 6px 24px; overflow: hidden; }
+  .loss-bar { height: 100%; background: var(--loss); border-radius: 4px; }
+  .loss-rx { font-size: 12px; color: var(--sub); margin-left: 24px; line-height: 1.5; }
+  .loss-rx b { color: var(--green-dark); }
+
+  /* ---- KPI tiles ---- */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .kpi {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 8px; text-align: center;
+  }
+  .kpi .v { font-size: 21px; font-weight: 700; }
+  .kpi .v small { font-size: 12px; font-weight: 600; color: var(--sub); }
+  .kpi .k { font-size: 11px; color: var(--muted); margin-top: 2px; }
+
+  /* ---- segment tabs ---- */
+  .seg-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .seg-btn {
+    border: 1px solid var(--line); background: var(--card); color: var(--sub);
+    border-radius: 999px; font-size: 12px; font-weight: 600; padding: 7px 12px;
+  }
+  .seg-btn.selected { background: var(--green); border-color: var(--green); color: #fff; }
+  .club-pick { display: none; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .club-pick.show { display: flex; }
+  .club-pick .seg-btn { padding: 6px 10px; }
+  .hm-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ---- heatmap ---- */
+  .hm-block + .hm-block { margin-top: 16px; }
+  .hm-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+  .hm-title small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+  .hm-wrap { display: grid; grid-template-columns: 18px 1fr; gap: 5px; }
+  .hm-axis-y { display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 5px; }
+  .hm-axis-y span {
+    writing-mode: vertical-rl; font-size: 10px; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; letter-spacing: 1px;
+  }
+  .hm-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .hm-cell {
+    border-radius: 10px; min-height: 58px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  }
+  .hm-cell .pct { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hm-cell .cnt { font-size: 10px; opacity: .75; }
+  .hm-axis-x { display: grid; grid-template-columns: 18px 1fr 1fr 1fr; gap: 5px; margin-top: 3px; }
+  .hm-axis-x span { font-size: 10px; color: var(--muted); text-align: center; }
+  .hm-insight {
+    margin-top: 8px; font-size: 12px; color: var(--sub); line-height: 1.5;
+    background: var(--bg); border-radius: 8px; padding: 8px 10px;
+  }
+  .hm-insight b { color: var(--green-dark); }
+
+  /* ---- hole table ---- */
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th {
+    font-size: 10px; color: var(--muted); font-weight: 600; text-align: center;
+    padding: 4px 2px; border-bottom: 1px solid var(--line);
+  }
+  td { font-size: 13px; text-align: center; padding: 6px 2px; border-bottom: 1px solid var(--line); }
+  tr:last-child td { border-bottom: none; }
+  td.hole-no { color: var(--muted); font-size: 11px; }
+  td.diff-over { color: var(--over); font-weight: 700; }
+  td.diff-under { color: var(--under); font-weight: 700; }
+  td.diff-even { color: var(--green-dark); font-weight: 700; }
+  td.note { font-size: 10px; color: var(--muted); }
+  td.putt3 { color: var(--over); font-weight: 700; }
+
+  .mock-note { text-align: center; font-size: 10px; color: var(--muted); padding: 14px 0 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="h-sub">2026.8.29(土) ○○カントリークラブ</div>
+    <div class="h-title">ラウンド振り返り</div>
+    <div class="hero">
+      <span class="score" id="heroScore">-</span>
+      <span class="topar" id="heroToPar"></span>
+    </div>
+    <div class="hero-chips" id="heroChips"></div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>スコアロス要因 TOP3 と処方</h2>
+      <div id="lossList"></div>
+    </div>
+
+    <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="card">
+      <h2>ホールタイプ別(平均の±)</h2>
+      <div class="kpi-grid" id="typeGrid" style="gap:8px;"></div>
+      <div class="hm-note" style="margin-top:8px;">1ラウンドではブレが大きい指標です。傾向は累積画面で。</div>
+    </div>
+
+    <div class="card">
+      <h2>ミス傾向ヒートマップ</h2>
+      <div class="seg-row" id="segRow"></div>
+      <div class="club-pick" id="clubPick"></div>
+      <div class="hm-block" style="margin-top:0;">
+        <div class="hm-title"><span id="shotTitle">ショット</span><small id="ironN"></small></div>
+        <div class="hm-wrap">
+          <div class="hm-axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+          <div class="hm-grid" id="ironGrid"></div>
+        </div>
+        <div class="hm-axis-x"><span></span><span>左</span><span>中</span><span>右</span></div>
+        <div class="hm-insight" id="ironInsight"></div>
+        <div class="hm-note" id="shotNote"></div>
+      </div>
+      <div class="hm-block">
+        <div class="hm-title">パットの外し方<small id="puttN"></small></div>
+        <div class="hm-wrap">
+          <div class="hm-axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+          <div class="hm-grid" id="puttGridHm"></div>
+        </div>
+        <div class="hm-axis-x"><span></span><span>左</span><span>中</span><span>右</span></div>
+        <div class="hm-insight" id="puttInsight"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ホール別</h2>
+      <table>
+        <thead><tr><th>H</th><th>Par</th><th>スコア</th><th>±</th><th>パット</th><th>メモ</th></tr></thead>
+        <tbody id="holeRows"></tbody>
+      </table>
+    </div>
+  </main>
+  <div class="mock-note">モック版:表示はダミーデータ(実装時は記録から自動集計)</div>
+</div>
+
+<script>
+(function () {
+  /* ============================================================
+     ダミーデータ:入力アプリが生成するのと同じ形式の1ラウンド分
+     shot = [club, lie, result, kind]
+     kind: n=通常 N=ナイス m=チョロダフリ ob=OB in=カップイン系 p=パット
+     ============================================================ */
+  var T="ティー", F="FW", R="ラフ", B="バンカー", W="林", G="グリーン";
+  var ROUND = [
+    { par:4, s:[["1W",T,"右","n"],["8I",R,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"ショート","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"ナイス","N"],["7I",F,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"惜しい","p"],["PT",G,"カップイン","in"]] },
+    { par:3, s:[["7I",T,"右ショート","n"],["SW",B,"ナイス","N"],["PT",G,"左に外し","p"],["PT",G,"カップイン","in"]] },
+    { par:5, s:[["1W",T,"OB右","ob"],["1W",T,"左","n"],["UT",R,"チョロ/ダフリ","m"],["5I",R,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"ショート","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"ナイス","N"],["9I",F,"ナイス","N"],["PT",G,"左ショート","p"],["PT",G,"ショート","p"],["PT",G,"カップイン","in"]] },
+    { par:3, s:[["8I",T,"ナイス","N"],["PT",G,"惜しい","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"左","n"],["7I",R,"左ショート","n"],["8I",R,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"ショート","p"],["PT",G,"カップイン","in"]] },
+    { par:5, s:[["3W",T,"ナイス","N"],["5W",F,"右","n"],["8I",R,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"惜しい","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"ナイス","N"],["6I",F,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"左に外し","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"ナイス","N"],["9I",F,"ナイス","N"],["PT",G,"惜しい","p"],["PT",G,"カップイン","in"]] },
+    { par:3, s:[["6I",T,"左","n"],["AW",R,"ナイス","N"],["PT",G,"ショート","p"],["PT",G,"カップイン","in"]] },
+    { par:5, s:[["1W",T,"OB右","ob"],["1W",T,"ナイス","N"],["UT",F,"右ショート","n"],["8I",R,"ナイス","N"],["PT",G,"左ショート","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"右","n"],["7I",R,"チョロ/ダフリ","m"],["9I",R,"ナイス","N"],["PT",G,"惜しい","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"ナイス","N"],["8I",F,"右ショート","n"],["SW",R,"ナイス","N"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"左","n"],["8I",R,"右ショート","n"],["SW",B,"ナイス","N"],["PT",G,"左に外し","p"],["PT",G,"カップイン","in"]] },
+    { par:3, s:[["7I",T,"右ショート","n"],["SW",R,"ナイス","N"],["PT",G,"カップイン","in"]] },
+    { par:5, s:[["3W",T,"ナイス","N"],["UT",F,"右","n"],["9I",R,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"惜しい","p"],["PT",G,"カップイン","in"]] },
+    { par:4, s:[["1W",T,"右","n"],["5I",R,"チョロ/ダフリ","m"],["8I",R,"右ショート","n"],["AW",R,"ナイス","N"],["PT",G,"ショート","p"],["PT",G,"ショート","p"],["PT",G,"カップイン","in"]] }
+  ];
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---------- 集計 ---------- */
+  function holeStats(h) {
+    var pen = h.s.filter(function (s) { return s[3] === "ob"; }).length;
+    var putts = h.s.filter(function (s) { return s[0] === "PT"; }).length;
+    var score = h.s.length + pen;
+    var toGreen = h.s.length - putts + pen; // グリーンに乗るまでの打数(罰込み)
+    var gir = toGreen <= h.par - 2;
+    var bogeyOn = toGreen <= h.par - 1;
+    var scramble = !gir && score <= h.par;
+    var bunker = h.s.some(function (s) { return s[1] === B; });
+    var trouble = h.s.some(function (s) { return s[1] === W; });
+    var choro = h.s.filter(function (s) { return s[3] === "m"; }).length;
+    var tee = h.s[0];
+    var fwKeep = null;
+    if (h.par >= 4) {
+      var r = tee[2];
+      fwKeep = (tee[3] !== "ob") && r.indexOf("左") < 0 && r.indexOf("右") < 0;
+    }
+    return { par: h.par, score: score, putts: putts, pen: pen, gir: gir,
+             bogeyOn: bogeyOn, scramble: scramble, fwKeep: fwKeep, bunker: bunker,
+             trouble: trouble, choro: choro, three: putts >= 3,
+             sandSave: bunker && score <= h.par };
+  }
+  var HS = ROUND.map(holeStats);
+  var total = HS.reduce(function (a, h) { return a + h.score; }, 0);
+  var parTotal = HS.reduce(function (a, h) { return a + h.par; }, 0);
+  var putts = HS.reduce(function (a, h) { return a + h.putts; }, 0);
+  var pens = HS.reduce(function (a, h) { return a + h.pen; }, 0);
+  var fwHoles = HS.filter(function (h) { return h.fwKeep !== null; });
+  var fwKept = fwHoles.filter(function (h) { return h.fwKeep; }).length;
+  var girN = HS.filter(function (h) { return h.gir; }).length;
+  var nonGir = HS.filter(function (h) { return !h.gir; });
+  var scrambled = nonGir.filter(function (h) { return h.scramble; }).length;
+  var threePutts = HS.filter(function (h) { return h.three; }).length;
+  var choroTotal = HS.reduce(function (a, h) { return a + h.choro; }, 0);
+  var obTotal = pens;
+  var bogeyOnN = HS.filter(function (h) { return h.bogeyOn; }).length;
+  var bunkerHoles = HS.filter(function (h) { return h.bunker; });
+  var sandSaved = bunkerHoles.filter(function (h) { return h.sandSave; }).length;
+  var attempts = 0, niceN = 0;
+  ROUND.forEach(function (h) {
+    h.s.forEach(function (s) {
+      if (s[0] === "PT" || s[3] === "in") return;
+      attempts++;
+      if (s[3] === "N") niceN++;
+    });
+  });
+
+  /* ---------- ヘッダー ---------- */
+  var toPar = total - parTotal;
+  $("heroScore").textContent = total;
+  $("heroToPar").textContent = (toPar >= 0 ? "+" : "") + toPar + " (Par" + parTotal + ")";
+  [["パット " + putts], ["OB " + obTotal], ["3パット " + threePutts + "回"]].forEach(function (t) {
+    var c = document.createElement("span");
+    c.className = "hero-chip"; c.textContent = t[0];
+    $("heroChips").appendChild(c);
+  });
+
+  /* ---------- スコアロスTOP3 ---------- */
+  var losses = [
+    { name: "OB " + obTotal + "発(すべて右)", loss: obTotal * 2,
+      rx: "処方:ドライバーの<b>右へのミス</b>が失点源。練習場で右プッシュ・スライスの原因(フェース向き)を1テーマに。" },
+    { name: "素ダフリ・チョロ " + choroTotal + "回(すべてラフ)", loss: choroTotal,
+      rx: "処方:ラフからの<b>欲張り番手</b>が原因の可能性。ラフでは1番手上げて短く握る、をルール化。" },
+    { name: "3パット " + threePutts + "回(すべてショート)", loss: threePutts,
+      rx: "処方:ファーストパットが<b>届いていない</b>。5m前後の距離感をパターマットより実グリーンで。" }
+  ].sort(function (a, b) { return b.loss - a.loss; });
+  var maxLoss = losses[0].loss;
+  losses.forEach(function (l, i) {
+    var div = document.createElement("div");
+    div.className = "loss-item";
+    div.innerHTML =
+      '<div class="loss-head"><span class="loss-rank">' + (i + 1) + '</span>'
+      + '<span class="loss-name">' + l.name + '</span>'
+      + '<span class="loss-val">-' + l.loss + '打</span></div>'
+      + '<div class="loss-bar-track"><div class="loss-bar" style="width:' + (l.loss / maxLoss * 100) + '%"></div></div>'
+      + '<div class="loss-rx">' + l.rx + '</div>';
+    $("lossList").appendChild(div);
+  });
+
+  /* ---------- KPI ---------- */
+  var kpis = [
+    { v: putts, unit: "", k: "パット合計" },
+    { v: Math.round(fwKept / fwHoles.length * 100), unit: "%", k: "FWキープ " + fwKept + "/" + fwHoles.length },
+    { v: Math.round(girN / HS.length * 100), unit: "%", k: "パーオン " + girN + "/" + HS.length },
+    { v: Math.round(bogeyOnN / HS.length * 100), unit: "%", k: "ボギーオン " + bogeyOnN + "/" + HS.length },
+    { v: scrambled + "/" + nonGir.length, unit: "", k: "寄せワン" },
+    { v: bunkerHoles.length ? sandSaved + "/" + bunkerHoles.length : "-", unit: "", k: "サンドセーブ" },
+    { v: threePutts, unit: "回", k: "3パット" },
+    { v: obTotal, unit: "打", k: "ペナルティ" },
+    { v: Math.round(niceN / attempts * 100), unit: "%", k: "ナイス率(ショット)" }
+  ];
+  kpis.forEach(function (x) {
+    var d = document.createElement("div");
+    d.className = "kpi";
+    d.innerHTML = '<div class="v">' + x.v + '<small>' + x.unit + '</small></div><div class="k">' + x.k + '</div>';
+    $("kpiGrid").appendChild(d);
+  });
+
+  /* ---------- ヒートマップ ---------- */
+  var RAMP = ["#eef5f1", "#d4e9de", "#aed7c2", "#83c1a2", "#54a87f", "#2b8f60", "#0f7b4d"];
+  function cellPos(result) {
+    var row = result.indexOf("オーバー") >= 0 ? 0 : result.indexOf("ショート") >= 0 ? 2 : 1;
+    var col = result.indexOf("左") >= 0 ? 0 : result.indexOf("右") >= 0 ? 2 : 1;
+    return [row, col];
+  }
+  function buildHeatmap(shots, gridEl, nEl, insightEl, labels) {
+    gridEl.innerHTML = "";
+    var m = [[0,0,0],[0,0,0],[0,0,0]], n = shots.length;
+    shots.forEach(function (s) {
+      var p = cellPos(s[2]);
+      m[p[0]][p[1]]++;
+    });
+    var max = 0;
+    m.forEach(function (r) { r.forEach(function (v) { if (v > max) max = v; }); });
+    nEl.textContent = "全" + n + "球";
+    for (var ri = 0; ri < 3; ri++) {
+      for (var ci = 0; ci < 3; ci++) {
+        var v = m[ri][ci];
+        var pct = n ? Math.round(v / n * 100) : 0;
+        var step = max ? Math.round(v / max * (RAMP.length - 1)) : 0;
+        var dark = step >= 4;
+        var cell = document.createElement("div");
+        cell.className = "hm-cell";
+        cell.style.background = RAMP[step];
+        cell.style.color = dark ? "#ffffff" : "#0b0b0b";
+        cell.innerHTML = v ? '<span class="pct">' + pct + '%</span><span class="cnt">' + v + '球</span>' : '<span class="cnt" style="opacity:.5">-</span>';
+        gridEl.appendChild(cell);
+      }
+    }
+    // インサイト:成功率(中央セル)と、ミスの中での偏りを分けて読む
+    var nice = m[1][1];
+    var missTotal = n - nice;
+    var best = { v: -1, ri: 0, ci: 0 };
+    for (var r2 = 0; r2 < 3; r2++) for (var c2 = 0; c2 < 3; c2++) {
+      if (r2 === 1 && c2 === 1) continue;
+      if (m[r2][c2] > best.v) best = { v: m[r2][c2], ri: r2, ci: c2 };
+    }
+    var rowName = ["オーバー", "ジャスト", "ショート"][best.ri];
+    var colName = ["左", "真ん中", "右"][best.ci];
+    var niceShare = n ? Math.round(nice / n * 100) : 0;
+    var missShare = missTotal ? Math.round(best.v / missTotal * 100) : 0;
+    if (!missTotal || missShare < 34) {
+      insightEl.innerHTML = labels.center + "率<b>" + niceShare + "%</b>。ミスの散り方に大きな偏りはありません。";
+    } else {
+      insightEl.innerHTML = labels.center + "率" + niceShare + "%。ミスは<b>" + colName + "・" + rowName
+        + "</b>に集中(ミスの" + missShare + "%)。" + labels.hint;
+    }
+  }
+  var allShots = [], puttShots = [];
+  ROUND.forEach(function (h) {
+    h.s.forEach(function (s) {
+      if (s[3] === "ob" || s[3] === "m" || s[3] === "in") return;
+      if (s[0] === "PT") puttShots.push(s);
+      else allShots.push(s);
+    });
+  });
+
+  var GROUPS = [
+    { key: "DR", label: "ドライバー", clubs: ["1W"], hint: "OBの方向と合わせて曲がり傾向をチェック。" },
+    { key: "WD", label: "ウッド・UT", clubs: ["3W", "5W", "UT"], hint: "長物は無理せずアイアン刻みも選択肢に。" },
+    { key: "IR", label: "アイアン", clubs: ["5I", "6I", "7I", "8I", "9I"], hint: "番手を1つ上げる or 振り遅れのチェックを。" },
+    { key: "WG", label: "ウェッジ", clubs: ["PW", "AW", "SW"], hint: "100y以内の精度はスコア直結。距離の打ち分け練習を。" },
+    { key: "CLUB", label: "クラブ別", clubs: null, hint: "" }
+  ];
+  var CLUB_ORDER = ["1W", "3W", "5W", "UT", "5I", "6I", "7I", "8I", "9I", "PW", "AW", "SW"];
+  var currentGroup = "IR", currentClub = null;
+
+  function renderShotHm() {
+    var g = GROUPS.filter(function (x) { return x.key === currentGroup; })[0];
+    var shots, title, hint;
+    if (g.key === "CLUB") {
+      shots = allShots.filter(function (s) { return s[0] === currentClub; });
+      title = currentClub;
+      hint = "";
+    } else {
+      shots = allShots.filter(function (s) { return g.clubs.indexOf(s[0]) >= 0; });
+      title = g.label;
+      hint = g.hint;
+    }
+    $("shotTitle").textContent = title;
+    buildHeatmap(shots, $("ironGrid"), $("ironN"), $("ironInsight"), { center: "ナイス", hint: hint });
+    $("shotNote").textContent = shots.length < 10 ? "球数が少ないため参考程度(" + shots.length + "球)。累積画面で精度が上がります。" : "";
+  }
+
+  var segRow = $("segRow"), clubPick = $("clubPick");
+  GROUPS.forEach(function (g) {
+    var b = document.createElement("button");
+    b.className = "seg-btn" + (g.key === currentGroup ? " selected" : "");
+    b.textContent = g.label;
+    b.dataset.key = g.key;
+    b.addEventListener("click", function () {
+      currentGroup = g.key;
+      Array.prototype.forEach.call(segRow.children, function (x) {
+        x.classList.toggle("selected", x.dataset.key === g.key);
+      });
+      clubPick.classList.toggle("show", g.key === "CLUB");
+      if (g.key === "CLUB") {
+        if (!currentClub) currentClub = clubsWithData[0];
+        Array.prototype.forEach.call(clubPick.children, function (x) {
+          x.classList.toggle("selected", x.dataset.club === currentClub);
+        });
+      }
+      renderShotHm();
+    });
+    segRow.appendChild(b);
+  });
+  var clubsWithData = CLUB_ORDER.filter(function (c) {
+    return allShots.some(function (s) { return s[0] === c; });
+  });
+  clubsWithData.forEach(function (c) {
+    var b = document.createElement("button");
+    b.className = "seg-btn";
+    b.textContent = c;
+    b.dataset.club = c;
+    b.addEventListener("click", function () {
+      currentClub = c;
+      Array.prototype.forEach.call(clubPick.children, function (x) {
+        x.classList.toggle("selected", x.dataset.club === c);
+      });
+      renderShotHm();
+    });
+    clubPick.appendChild(b);
+  });
+  renderShotHm();
+  buildHeatmap(puttShots, $("puttGridHm"), $("puttN"), $("puttInsight"),
+    { center: "惜しい", hint: "距離感か打ち出し方向、偏っている側を練習テーマに。" });
+
+  /* ---------- ホールタイプ別 ---------- */
+  [{ par: 3, label: "ショート" }, { par: 4, label: "ミドル" }, { par: 5, label: "ロング" }].forEach(function (t) {
+    var hs = HS.filter(function (h) { return h.par === t.par; });
+    var avg = hs.reduce(function (a, h) { return a + (h.score - h.par); }, 0) / hs.length;
+    var d = document.createElement("div");
+    d.className = "kpi";
+    d.innerHTML = '<div class="v">' + (avg >= 0 ? "+" : "") + avg.toFixed(1) + '</div><div class="k">' + t.label + '(Par' + t.par + ') ×' + hs.length + '</div>';
+    $("typeGrid").appendChild(d);
+  });
+
+  /* ---------- ホール別 ---------- */
+  HS.forEach(function (h, i) {
+    var d = h.score - h.par;
+    var cls = d > 0 ? "diff-over" : d < 0 ? "diff-under" : "diff-even";
+    var notes = [];
+    if (h.pen) notes.push("OB");
+    if (h.three) notes.push("3パット");
+    if (h.choro) notes.push("ダフリ");
+    if (h.bunker) notes.push("バンカー");
+    if (h.scramble) notes.push("寄せワン");
+    var tr = document.createElement("tr");
+    tr.innerHTML = '<td class="hole-no">' + (i + 1) + '</td>'
+      + '<td>' + h.par + '</td>'
+      + '<td>' + h.score + '</td>'
+      + '<td class="' + cls + '">' + (d > 0 ? "+" + d : d === 0 ? "E" : d) + '</td>'
+      + '<td class="' + (h.three ? "putt3" : "") + '">' + h.putts + '</td>'
+      + '<td class="note">' + notes.join("・") + '</td>';
+    $("holeRows").appendChild(tr);
+  });
+})();
+</script>
+</body>
+</html>

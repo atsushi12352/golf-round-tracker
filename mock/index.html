@@ -1,0 +1,609 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>ゴルフ記録モック</title>
+<style>
+  :root {
+    --green: #0f7b4d;
+    --green-dark: #0a5c39;
+    --green-pale: #e6f4ee;
+    --ink: #1c2b24;
+    --sub: #68766f;
+    --line: #dfe7e2;
+    --bg: #f4f7f5;
+    --danger: #c0392b;
+    --danger-pale: #fbeae7;
+    --warn: #b9770e;
+    --warn-pale: #fdf3e3;
+    --nice: #0f7b4d;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    user-select: none;
+    -webkit-user-select: none;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  .app { max-width: 480px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+  /* ---- header ---- */
+  header {
+    background: var(--green);
+    color: #fff;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .hole-info { display: flex; align-items: baseline; gap: 8px; }
+  .hole-num { font-size: 22px; font-weight: 700; }
+  .hole-par { font-size: 14px; opacity: .85; }
+  .stroke-now { text-align: right; }
+  .stroke-now .label { font-size: 11px; opacity: .8; }
+  .stroke-now .num { font-size: 22px; font-weight: 700; line-height: 1.1; }
+
+  /* ---- shot log ---- */
+  .log-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: #fff; border-bottom: 1px solid var(--line);
+    min-height: 46px;
+  }
+  .log-scroll { display: flex; gap: 6px; overflow-x: auto; flex: 1; -webkit-overflow-scrolling: touch; }
+  .log-scroll::-webkit-scrollbar { display: none; }
+  .log-chip {
+    flex: 0 0 auto; font-size: 12px; padding: 5px 9px; border-radius: 999px;
+    background: var(--green-pale); color: var(--green-dark); white-space: nowrap; font-weight: 600;
+  }
+  .log-chip.bad { background: var(--danger-pale); color: var(--danger); }
+  .log-chip.warn { background: var(--warn-pale); color: var(--warn); }
+  .log-empty { font-size: 12px; color: var(--sub); }
+  .undo-btn {
+    flex: 0 0 auto; border: 1px solid var(--line); background: #fff; color: var(--sub);
+    font-size: 12px; padding: 6px 10px; border-radius: 8px; font-weight: 600;
+  }
+  .undo-btn:active { background: var(--bg); }
+
+  /* ---- main ---- */
+  main { flex: 1; padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 8px; }
+  .guide { font-size: 13px; color: var(--sub); text-align: center; }
+  .guide b { color: var(--ink); }
+
+  /* ---- edit banner ---- */
+  .edit-banner {
+    display: none; align-items: center; justify-content: space-between; gap: 8px;
+    background: #fff7e0; border: 1px solid #ecd9a0; border-radius: 10px;
+    padding: 8px 10px; font-size: 13px; font-weight: 600; color: #8a6d1a;
+  }
+  .edit-banner.show { display: flex; }
+  .edit-banner button {
+    border: 1px solid #ecd9a0; background: #fff; color: #8a6d1a;
+    border-radius: 8px; font-size: 12px; font-weight: 600; padding: 5px 10px;
+  }
+
+  /* ---- lie row ---- */
+  .lie-row { display: flex; align-items: center; gap: 6px; }
+  .lie-label { font-size: 11px; color: var(--sub); flex: 0 0 auto; }
+  .lie-chips { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; flex: 1; }
+  .lie-chip {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    min-height: 38px; font-size: 13px; font-weight: 600; color: var(--sub);
+  }
+  .lie-chip.selected { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .lie-chip.auto.selected { background: var(--green-dark); border-color: var(--green-dark); }
+
+  /* ---- 9 grid ---- */
+  .grid-wrap { display: grid; grid-template-columns: 20px 1fr; gap: 6px; }
+  .axis-y { display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 6px; }
+  .axis-y span {
+    writing-mode: vertical-rl; font-size: 11px; color: var(--sub);
+    display: flex; align-items: center; justify-content: center; letter-spacing: 2px;
+  }
+  .grid9 { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 6px; }
+  .cell {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+    min-height: 74px; font-size: 14px; font-weight: 600; color: var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .cell small { font-size: 10px; color: var(--sub); font-weight: 500; }
+  .cell:active { background: var(--green-pale); border-color: var(--green); }
+  .cell.center { background: var(--green-pale); border-color: var(--green); color: var(--green-dark); }
+  .cell.center:active { background: var(--green); color: #fff; }
+  .axis-x { display: grid; grid-template-columns: 20px 1fr 1fr 1fr; gap: 6px; }
+  .axis-x span { font-size: 11px; color: var(--sub); text-align: center; }
+  .axis-x span:first-child { visibility: hidden; }
+
+  /* ---- special buttons ---- */
+  .special-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .sp-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 12px;
+    min-height: 52px; font-size: 13px; font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .sp-btn.ob { color: var(--danger); border-color: #edc7c1; }
+  .sp-btn.ob:active { background: var(--danger-pale); }
+  .sp-btn.miss { color: var(--warn); border-color: #ead9b8; }
+  .sp-btn.miss:active { background: var(--warn-pale); }
+  .sp-btn.in { color: var(--green-dark); border-color: var(--green); background: var(--green-pale); }
+  .sp-btn.in:active { background: var(--green); color: #fff; }
+
+  /* ---- putt mode ---- */
+  .putt-area { display: flex; flex-direction: column; gap: 8px; }
+  .putt-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .putt-btn {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+    min-height: 84px; font-size: 15px; font-weight: 600;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  }
+  .putt-btn small { font-size: 10px; color: var(--sub); font-weight: 500; }
+  .putt-btn:active { background: var(--green-pale); border-color: var(--green); }
+  .cupin-btn {
+    background: var(--green); color: #fff; border: none; border-radius: var(--radius);
+    min-height: 76px; font-size: 18px; font-weight: 700; letter-spacing: 1px;
+  }
+  .cupin-btn:active { background: var(--green-dark); }
+
+  /* ---- club selector ---- */
+  .club-bar { background: #fff; border-top: 1px solid var(--line); padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); }
+  .club-label { font-size: 11px; color: var(--sub); margin: 0 2px 6px; }
+  .club-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .club-btn {
+    min-height: 44px; border-radius: 10px; padding: 0;
+    border: 1px solid var(--line); background: #fff; font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .club-btn.selected { background: var(--green); border-color: var(--green); color: #fff; }
+  .club-btn.pt { border-style: dashed; }
+
+  /* ---- flash feedback ---- */
+  .flash {
+    position: fixed; left: 50%; top: 40%; transform: translate(-50%, -50%);
+    background: rgba(20, 40, 30, .88); color: #fff; padding: 12px 22px; border-radius: 14px;
+    font-size: 16px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .15s;
+    z-index: 50; text-align: center; line-height: 1.4;
+  }
+  .flash.show { opacity: 1; }
+  .flash small { display: block; font-size: 11px; font-weight: 500; opacity: .8; }
+
+  /* ---- summary overlay ---- */
+  .overlay {
+    position: fixed; inset: 0; background: rgba(15, 30, 22, .5);
+    display: none; align-items: flex-end; justify-content: center; z-index: 100;
+  }
+  .overlay.show { display: flex; }
+  .sheet {
+    background: #fff; width: 100%; max-width: 480px; border-radius: 20px 20px 0 0;
+    padding: 20px 18px calc(24px + env(safe-area-inset-bottom));
+    max-height: 85vh; overflow-y: auto;
+  }
+  .sheet h2 { font-size: 17px; margin-bottom: 14px; text-align: center; }
+  .stat-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 14px; }
+  .stat {
+    background: var(--bg); border-radius: 12px; padding: 10px; text-align: center;
+  }
+  .stat .v { font-size: 24px; font-weight: 700; color: var(--green-dark); }
+  .stat .k { font-size: 11px; color: var(--sub); }
+  .shot-list { border-top: 1px solid var(--line); }
+  .shot-item {
+    display: flex; align-items: center; gap: 10px; padding: 9px 2px;
+    border-bottom: 1px solid var(--line); font-size: 14px;
+  }
+  .shot-item .no { color: var(--sub); font-size: 12px; width: 34px; }
+  .shot-item .club { font-weight: 700; width: 40px; }
+  .shot-item .res { flex: 1; }
+  .shot-item .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; background: var(--green-pale); color: var(--green-dark); }
+  .shot-item .tag.bad { background: var(--danger-pale); color: var(--danger); }
+  .shot-item .tag.warn { background: var(--warn-pale); color: var(--warn); }
+  .fix-btn {
+    border: 1px solid var(--line); background: #fff; color: var(--sub);
+    border-radius: 8px; font-size: 12px; font-weight: 600; padding: 6px 10px; flex: 0 0 auto;
+  }
+  .fix-btn:active { background: var(--bg); }
+  .sheet-btns { display: grid; grid-template-columns: 1fr; gap: 8px; margin-top: 16px; }
+  .sheet-btn { border-radius: 12px; min-height: 50px; font-size: 15px; font-weight: 700; border: none; }
+  .sheet-btn.primary { background: var(--green); color: #fff; }
+  .sheet-btn.ghost { background: var(--bg); color: var(--ink); }
+
+  .mock-note { text-align: center; font-size: 10px; color: var(--sub); padding: 4px 0 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="hole-info">
+      <span class="hole-num">HOLE <span id="holeNum">1</span></span>
+      <span class="hole-par">Par <span id="holePar">4</span></span>
+    </div>
+    <div class="stroke-now">
+      <div class="label">次のショット</div>
+      <div class="num"><span id="strokeNum">1</span>打目</div>
+    </div>
+  </header>
+
+  <div class="log-bar">
+    <div class="log-scroll" id="logScroll"><span class="log-empty">まだ記録はありません</span></div>
+    <button class="undo-btn" id="undoBtn">1打戻す</button>
+  </div>
+
+  <main>
+    <div class="guide" id="guide"><b>クラブ</b>を選んで、結果のマスをタップ</div>
+
+    <div class="edit-banner" id="editBanner">
+      <span id="editBannerText">修正中</span>
+      <button id="cancelEdit">修正をやめる</button>
+    </div>
+
+    <div class="lie-row" id="lieRow">
+      <span class="lie-label">ライ</span>
+      <div class="lie-chips" id="lieChips"></div>
+    </div>
+
+    <!-- 9 grid mode -->
+    <div id="gridMode">
+      <div class="grid-wrap">
+        <div class="axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+        <div class="grid9" id="grid9"></div>
+      </div>
+      <div class="axis-x" style="margin-top:4px;">
+        <span>.</span><span>左</span><span>中</span><span>右</span>
+      </div>
+      <div class="special-row" style="margin-top:10px;">
+        <button class="sp-btn ob" data-special="OB左">OB左<small style="font-weight:500;">+1罰</small></button>
+        <button class="sp-btn ob" data-special="OB右">OB右<small style="font-weight:500;">+1罰</small></button>
+        <button class="sp-btn miss" data-special="チョロ/ダフリ">チョロ<br>ダフリ</button>
+        <button class="sp-btn in" data-special="チップイン">チップ<br>イン</button>
+      </div>
+    </div>
+
+    <!-- putt mode -->
+    <div id="puttMode" style="display:none;">
+      <div class="lie-row" id="puttDistRow" style="margin-bottom:8px;">
+        <span class="lie-label">距離</span>
+        <div class="lie-chips" id="puttDistChips" style="grid-template-columns: repeat(4, 1fr);"></div>
+      </div>
+      <div class="grid-wrap">
+        <div class="axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+        <div class="grid9" id="puttGrid"></div>
+      </div>
+      <div class="axis-x" style="margin-top:4px;">
+        <span>.</span><span>左</span><span>中</span><span>右</span>
+      </div>
+      <button class="cupin-btn" data-putt="カップイン" style="width:100%;margin-top:10px;">カップイン</button>
+    </div>
+  </main>
+
+  <div class="club-bar">
+    <div class="club-label">クラブ</div>
+    <div class="club-grid" id="clubGrid"></div>
+  </div>
+  <div class="mock-note">モック版:データは保存されません(画面を閉じるとリセット)</div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet">
+    <h2 id="sheetTitle">ホールアウト</h2>
+    <div class="stat-row">
+      <div class="stat"><div class="v" id="statScore">-</div><div class="k">スコア</div></div>
+      <div class="stat"><div class="v" id="statPutts">-</div><div class="k">パット</div></div>
+      <div class="stat"><div class="v" id="statPenalty">-</div><div class="k">ペナルティ</div></div>
+    </div>
+    <div class="shot-list" id="shotList"></div>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="nextHole">次のホールへ</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  var CLUBS = ["1W","3W","5W","UT","5I","6I","7I","8I","9I","PW","AW","SW","PT"];
+  var GRID = [
+    ["左オーバー","オーバー","右オーバー"],
+    ["左",       "ナイス",  "右"],
+    ["左ショート","ショート","右ショート"]
+  ];
+  var LIES = ["ティー", "FW", "ラフ", "バンカー", "林"];
+  var hole = { num: 1, par: 4 };
+  var shots = [];          // {club, lie, result, kind: normal|nice|ob|miss|in|putt}
+  var selectedClub = "1W";
+  var selectedLie = "ティー";
+  var lieIsAuto = true;
+  var editIndex = null;    // 修正中のショットindex(null=通常入力)
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---- build club bar ---- */
+  var clubGrid = $("clubGrid");
+  CLUBS.forEach(function (c) {
+    var b = document.createElement("button");
+    b.className = "club-btn" + (c === "PT" ? " pt" : "");
+    b.textContent = c;
+    b.dataset.club = c;
+    b.addEventListener("click", function () { selectClub(c); });
+    clubGrid.appendChild(b);
+  });
+
+  /* ---- build lie chips ---- */
+  var lieChips = $("lieChips");
+  LIES.forEach(function (l) {
+    var b = document.createElement("button");
+    b.className = "lie-chip";
+    b.textContent = l;
+    b.dataset.lie = l;
+    b.addEventListener("click", function () { setLie(l, false); });
+    lieChips.appendChild(b);
+  });
+
+  function setLie(l, auto) {
+    selectedLie = l;
+    lieIsAuto = auto;
+    Array.prototype.forEach.call(lieChips.children, function (b) {
+      b.classList.toggle("selected", b.dataset.lie === l);
+      b.classList.toggle("auto", auto && b.dataset.lie === l);
+    });
+  }
+
+  /* 前の打から次のライを推測する(バンカー・林は手動でのみ選ばれる) */
+  function inferLie() {
+    if (shots.length === 0) return "ティー";
+    var last = shots[shots.length - 1];
+    if (last.result.indexOf("OB") === 0) return last.lie;          // 打ち直し:同じ場所
+    if (last.kind === "miss") return last.lie;                      // チョロ:ほぼ同じ場所
+    if (last.result.indexOf("左") >= 0 || last.result.indexOf("右") >= 0) return "ラフ";
+    return "FW";
+  }
+
+  function selectClub(c) {
+    selectedClub = c;
+    Array.prototype.forEach.call(clubGrid.children, function (b) {
+      b.classList.toggle("selected", b.dataset.club === c);
+    });
+    var isPutt = (c === "PT");
+    $("gridMode").style.display = isPutt ? "none" : "";
+    $("puttMode").style.display = isPutt ? "" : "none";
+    $("lieRow").style.display = isPutt ? "none" : "";
+    if (isPutt) updatePuttDistRow();
+    $("guide").innerHTML = isPutt
+      ? "<b>パット</b>の結果をタップ(入ったら「カップイン」)"
+      : "<b>" + c + "</b> の結果のマスをタップ";
+  }
+
+  /* ---- build 9 grid ---- */
+  var grid9 = $("grid9");
+  GRID.forEach(function (row, ri) {
+    row.forEach(function (label, ci) {
+      var b = document.createElement("button");
+      b.className = "cell" + (ri === 1 && ci === 1 ? " center" : "");
+      b.innerHTML = ri === 1 && ci === 1 ? "ナイス<small>狙い通り</small>" : label;
+      b.addEventListener("click", function () {
+        record({ club: selectedClub, lie: selectedLie, result: label, kind: (ri === 1 && ci === 1) ? "nice" : "normal" });
+      });
+      grid9.appendChild(b);
+    });
+  });
+
+  /* ---- special buttons ---- */
+  Array.prototype.forEach.call(document.querySelectorAll("[data-special]"), function (b) {
+    b.addEventListener("click", function () {
+      var r = b.dataset.special;
+      if (r === "チップイン") {
+        var wasEdit = (editIndex !== null);
+        record({ club: selectedClub, lie: selectedLie, result: "チップイン", kind: "in" });
+        if (!wasEdit) holeOut();
+      } else if (r.indexOf("OB") === 0) {
+        record({ club: selectedClub, lie: selectedLie, result: r, kind: "ob" });
+      } else {
+        record({ club: selectedClub, lie: selectedLie, result: r, kind: "miss" });
+      }
+    });
+  });
+
+  /* ---- パットの距離帯(毎打選択) ---- */
+  var PUTT_DISTS = [
+    { key: "ロング", note: "10m〜" },
+    { key: "ミドル", note: "3〜10m" },
+    { key: "ショート", note: "1〜3m" },
+    { key: "1m以内", note: "タップイン" }
+  ];
+  var selectedPuttDist = "ミドル";
+  var puttDistChips = $("puttDistChips");
+  PUTT_DISTS.forEach(function (p) {
+    var b = document.createElement("button");
+    b.className = "lie-chip";
+    b.innerHTML = p.key + '<br><small style="font-size:9px;font-weight:500;">' + p.note + '</small>';
+    b.dataset.dist = p.key;
+    b.addEventListener("click", function () { setPuttDist(p.key); });
+    puttDistChips.appendChild(b);
+  });
+  function setPuttDist(k) {
+    selectedPuttDist = k;
+    Array.prototype.forEach.call(puttDistChips.children, function (b) {
+      b.classList.toggle("selected", b.dataset.dist === k);
+    });
+  }
+  /* 2パット目以降はタップイン圏が多いので「1m以内」を自動選択(違うときだけタップで変更) */
+  function updatePuttDistRow() {
+    var isFirst = shots.filter(function (s) { return s.club === "PT"; }).length === 0;
+    setPuttDist(isFirst ? "ミドル" : "1m以内");
+  }
+
+  /* ---- putt grid (打ち出し方向 × 距離感) ---- */
+  var PGRID = [
+    ["左オーバー", "オーバー",  "右オーバー"],
+    ["左に外し",   "惜しい",    "右に外し"],
+    ["左ショート", "ショート",  "右ショート"]
+  ];
+  var puttGrid = $("puttGrid");
+  PGRID.forEach(function (row, ri) {
+    row.forEach(function (label, ci) {
+      var b = document.createElement("button");
+      b.className = "cell";
+      b.innerHTML = (ri === 1 && ci === 1) ? "惜しい<small>距離◎ 真っ直ぐ</small>" : label;
+      b.addEventListener("click", function () {
+        record({ club: "PT", lie: "グリーン", result: label, kind: "putt", dist: selectedPuttDist });
+      });
+      puttGrid.appendChild(b);
+    });
+  });
+
+  /* ---- cup in ---- */
+  Array.prototype.forEach.call(document.querySelectorAll("[data-putt='カップイン']"), function (b) {
+    b.addEventListener("click", function () {
+      var wasEdit = (editIndex !== null);
+      record({ club: "PT", lie: "グリーン", result: "カップイン", kind: "in", dist: selectedPuttDist });
+      if (!wasEdit) holeOut();
+    });
+  });
+
+  /* ---- record / undo ---- */
+  function record(shot) {
+    if (editIndex !== null) {
+      var i = editIndex;
+      shots[i] = shot;
+      exitEditMode();
+      render();
+      flash((i + 1) + "打目を修正しました", shot.club + " " + shot.result);
+      // 最終打がホールイン系のままなら、サマリーに戻る
+      var last = shots[shots.length - 1];
+      if (last && last.kind === "in") setTimeout(holeOut, 700);
+      return;
+    }
+    shots.push(shot);
+    setLie(inferLie(), true);
+    updatePuttDistRow();
+    render();
+    flash(shot.club + " " + shot.result, shot.kind === "ob" ? "+1打罰" : (shot.dist ? shot.dist + "パット" : (shot.lie !== "グリーン" ? shot.lie + "から" : "")));
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+
+  /* ---- edit mode ---- */
+  function startEdit(i) {
+    editIndex = i;
+    var s = shots[i];
+    $("overlay").classList.remove("show");
+    $("editBannerText").textContent = (i + 1) + "打目を修正中(" + s.club + " " + s.result + ")";
+    $("editBanner").classList.add("show");
+    selectClub(s.club);
+    if (s.club !== "PT") setLie(s.lie, false);
+  }
+
+  function exitEditMode() {
+    editIndex = null;
+    $("editBanner").classList.remove("show");
+    selectClub(selectedClub);
+    setLie(inferLie(), true);
+  }
+
+  $("cancelEdit").addEventListener("click", function () {
+    exitEditMode();
+    var last = shots[shots.length - 1];
+    if (last && last.kind === "in") holeOut();
+  });
+
+  $("undoBtn").addEventListener("click", function () {
+    if (editIndex !== null) exitEditMode();
+    if (shots.length === 0) return;
+    var s = shots.pop();
+    setLie(inferLie(), true);
+    updatePuttDistRow();
+    render();
+    flash("取り消し", s.club + " " + s.result);
+  });
+
+  /* ---- render ---- */
+  function penalties() {
+    return shots.filter(function (s) { return s.kind === "ob"; }).length;
+  }
+  function score() { return shots.length + penalties(); }
+  function putts() {
+    return shots.filter(function (s) { return s.club === "PT"; }).length;
+  }
+
+  function render() {
+    $("strokeNum").textContent = score() + 1;
+    var log = $("logScroll");
+    log.innerHTML = "";
+    if (shots.length === 0) {
+      log.innerHTML = '<span class="log-empty">まだ記録はありません</span>';
+    } else {
+      shots.forEach(function (s, i) {
+        var chip = document.createElement("span");
+        chip.className = "log-chip" + (s.kind === "ob" ? " bad" : s.kind === "miss" ? " warn" : "");
+        chip.textContent = (i + 1) + " " + (s.lie === "グリーン" ? (s.dist ? s.dist + " " : "") : s.lie + " ") + s.club + " " + s.result;
+        log.appendChild(chip);
+      });
+      log.scrollLeft = log.scrollWidth;
+    }
+  }
+
+  /* ---- flash ---- */
+  var flashTimer;
+  function flash(main, sub) {
+    var f = $("flash");
+    f.innerHTML = main + (sub ? "<small>" + sub + "</small>" : "");
+    f.classList.add("show");
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(function () { f.classList.remove("show"); }, 900);
+  }
+
+  /* ---- hole out ---- */
+  function holeOut() {
+    var sc = score(), pa = hole.par;
+    var diff = sc - pa;
+    var name = diff === 0 ? "パー" : diff === -1 ? "バーディ" : diff === -2 ? "イーグル"
+             : diff === 1 ? "ボギー" : diff === 2 ? "ダブルボギー" : "+" + diff;
+    $("sheetTitle").textContent = "ホール" + hole.num + " ホールアウト:" + name;
+    $("statScore").textContent = sc;
+    $("statPutts").textContent = putts();
+    $("statPenalty").textContent = penalties();
+    var list = $("shotList");
+    list.innerHTML = "";
+    shots.forEach(function (s, i) {
+      var div = document.createElement("div");
+      div.className = "shot-item";
+      var tagClass = s.kind === "ob" ? "bad" : s.kind === "miss" ? "warn" : "";
+      div.innerHTML = '<span class="no">' + (i + 1) + '打</span>'
+        + '<span class="club">' + s.club + '</span>'
+        + '<span class="res">' + s.result + ' <small style="color:var(--sub);font-size:11px;">' + s.lie + (s.dist ? "・" + s.dist : "") + '</small></span>'
+        + (s.kind === "ob" ? '<span class="tag bad">+1罰</span>'
+          : s.kind === "in" || s.kind === "nice" ? '<span class="tag">Good</span>'
+          : s.kind === "miss" ? '<span class="tag warn">ミス</span>' : "");
+      var fixBtn = document.createElement("button");
+      fixBtn.className = "fix-btn";
+      fixBtn.textContent = "修正";
+      fixBtn.addEventListener("click", function () { startEdit(i); });
+      div.appendChild(fixBtn);
+      list.appendChild(div);
+    });
+    $("overlay").classList.add("show");
+  }
+
+
+  $("nextHole").addEventListener("click", function () {
+    hole.num += 1;
+    hole.par = [4, 3, 5, 4][ (hole.num - 1) % 4 ];
+    $("holeNum").textContent = hole.num;
+    $("holePar").textContent = hole.par;
+    shots = [];
+    $("overlay").classList.remove("show");
+    selectClub("1W");
+    setLie("ティー", true);
+    setPuttDist("ミドル");
+    render();
+  });
+
+  /* ---- init ---- */
+  selectClub("1W");
+  setLie("ティー", true);
+  setPuttDist("ミドル");
+  render();
+})();
+</script>
+</body>
+</html>

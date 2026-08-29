@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<title>ラウンド開始 - ゴルフ記録</title>
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <div class="h-sub"><a href="index.html" style="color:#fff;opacity:.85;">&larr; ホーム</a></div>
+    <div class="h-title">ラウンド開始</div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>コース</h2>
+      <div class="chip-grid" id="courseChips" style="margin-bottom:10px;"></div>
+      <div class="field">
+        <label>新規コース名を入力</label>
+        <input type="text" id="newCourseName" placeholder="例:○○カントリークラブ">
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>ティー</h2>
+      <div class="chip-grid" id="teeChips" style="margin-bottom:10px;"></div>
+      <div class="field">
+        <label>自由入力</label>
+        <input type="text" id="teeCustom" placeholder="例:レディース">
+      </div>
+    </div>
+
+    <button class="btn primary block" id="startBtn" style="min-height:54px;">この内容でラウンド開始</button>
+    <div class="empty-state" id="errMsg" style="display:none;color:var(--danger);"></div>
+  </main>
+</div>
+
+<script type="module" src="js/roundStart.js"></script>
+<script type="module" src="js/sw-register.js"></script>
+</body>
+</html>

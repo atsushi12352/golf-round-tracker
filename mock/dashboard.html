@@ -1,0 +1,528 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>累積ダッシュボードモック</title>
+<style>
+  :root {
+    --green: #0f7b4d;
+    --green-dark: #0a5c39;
+    --green-pale: #e6f4ee;
+    --ink: #0b0b0b;
+    --sub: #52514e;
+    --muted: #898781;
+    --line: #e1e0d9;
+    --grid: #eceae4;
+    --bg: #f4f7f5;
+    --card: #fcfcfb;
+    --good: #006300;
+    --bad: #b0421f;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg); color: var(--ink);
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  .app { max-width: 480px; margin: 0 auto; }
+
+  header {
+    background: var(--green); color: #fff;
+    padding: calc(14px + env(safe-area-inset-top)) 18px 18px;
+  }
+  .h-sub { font-size: 12px; opacity: .85; }
+  .h-title { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .hero-row { display: flex; gap: 18px; margin-top: 12px; align-items: flex-end; }
+  .hero-item .v { font-size: 40px; font-weight: 700; line-height: 1; }
+  .hero-item .v small { font-size: 15px; font-weight: 600; opacity: .85; }
+  .hero-item .k { font-size: 11px; opacity: .8; margin-top: 4px; }
+  .hero-item.secondary .v { font-size: 26px; }
+
+  main { padding: 12px 12px 0; display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+    padding: 14px;
+  }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 700; margin-bottom: 10px; letter-spacing: .02em; }
+  .card h2 small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+
+  svg text { font-family: inherit; }
+
+  /* ---- KPI ---- */
+  .kpi-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+  .kpi {
+    background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 6px; text-align: center;
+  }
+  .kpi .v { font-size: 20px; font-weight: 700; }
+  .kpi .v small { font-size: 11px; font-weight: 600; color: var(--sub); }
+  .kpi .k { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .kpi .d { font-size: 11px; font-weight: 700; margin-top: 3px; }
+  .kpi .d.up { color: var(--good); }
+  .kpi .d.down { color: var(--bad); }
+  .kpi .d.flat { color: var(--muted); font-weight: 500; }
+  .kpi-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+
+  /* ---- segment tabs ---- */
+  .seg-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .seg-btn {
+    border: 1px solid var(--line); background: var(--card); color: var(--sub);
+    border-radius: 999px; font-size: 12px; font-weight: 600; padding: 7px 12px;
+  }
+  .seg-btn.selected { background: var(--green); border-color: var(--green); color: #fff; }
+  .club-pick { display: none; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .club-pick.show { display: flex; }
+  .club-pick .seg-btn { padding: 6px 10px; }
+  .hm-note { font-size: 11px; color: var(--muted); margin-top: 6px; }
+
+  /* ---- heatmap ---- */
+  .hm-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+  .hm-title small { font-weight: 500; color: var(--muted); margin-left: 6px; }
+  .hm-wrap { display: grid; grid-template-columns: 18px 1fr; gap: 5px; }
+  .hm-axis-y { display: grid; grid-template-rows: 1fr 1fr 1fr; gap: 5px; }
+  .hm-axis-y span {
+    writing-mode: vertical-rl; font-size: 10px; color: var(--muted);
+    display: flex; align-items: center; justify-content: center; letter-spacing: 1px;
+  }
+  .hm-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; }
+  .hm-cell {
+    border-radius: 10px; min-height: 58px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+  }
+  .hm-cell .pct { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hm-cell .cnt { font-size: 10px; opacity: .75; }
+  .hm-axis-x { display: grid; grid-template-columns: 18px 1fr 1fr 1fr; gap: 5px; margin-top: 3px; }
+  .hm-axis-x span { font-size: 10px; color: var(--muted); text-align: center; }
+  .hm-insight {
+    margin-top: 8px; font-size: 12px; color: var(--sub); line-height: 1.5;
+    background: var(--bg); border-radius: 8px; padding: 8px 10px;
+  }
+  .hm-insight b { color: var(--green-dark); }
+  .hm-block + .hm-block { margin-top: 16px; }
+
+  /* ---- course hole grid ---- */
+  .hole-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+  .hole-tile {
+    background: var(--bg); border-radius: 9px; padding: 7px 2px 6px; text-align: center;
+  }
+  .hole-tile .no { font-size: 9px; color: var(--muted); }
+  .hole-tile .avg { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .hole-tile.worst { background: #f8e9e2; }
+  .hole-tile.worst .avg { color: var(--bad); }
+  .hole-tile.best .avg { color: var(--good); }
+
+  .mock-note { text-align: center; font-size: 10px; color: var(--muted); padding: 14px 0 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="h-sub">2026.5〜8 全8ラウンド</div>
+    <div class="h-title">累積ダッシュボード</div>
+    <div class="hero-row">
+      <div class="hero-item"><div class="v" id="avgRecent">-</div><div class="k">直近3Rの平均スコア</div></div>
+      <div class="hero-item secondary"><div class="v" id="best">-</div><div class="k">ベスト</div></div>
+      <div class="hero-item secondary"><div class="v" id="avgAll">-</div><div class="k">全期間平均</div></div>
+    </div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>スコアとパット数の推移<small>直近20ラウンドまで表示</small></h2>
+      <div id="scoreChart"></div>
+      <div id="puttChart" style="margin-top:2px;"></div>
+    </div>
+
+    <div class="card" style="padding: 14px 14px 12px;">
+      <h2>主要指標<small>直近3Rの平均と、その前3Rとの比較</small></h2>
+      <div class="kpi-grid" id="kpiGrid"></div>
+      <div class="kpi-note">矢印は良い方向への変化が緑(パット・3パット・ペナルティは減が良化)。</div>
+    </div>
+
+    <div class="card">
+      <h2>ホールタイプ別 平均の±<small>全8ラウンド</small></h2>
+      <div class="kpi-grid" id="typeGrid"></div>
+    </div>
+
+    <div class="card">
+      <h2>コース別・ホール別 平均の±<small>クラチャン対策に</small></h2>
+      <div class="seg-row" id="courseRow"></div>
+      <div class="hole-grid" id="courseHoles"></div>
+      <div class="hm-insight" id="courseInsight" style="margin-top:10px;"></div>
+    </div>
+
+    <div class="card">
+      <h2>累積ミス傾向ヒートマップ</h2>
+      <div class="seg-row" id="segRow"></div>
+      <div class="club-pick" id="clubPick"></div>
+      <div class="hm-block" style="margin-top:0;">
+        <div class="hm-title"><span id="shotTitle">ショット</span><small id="shotN"></small></div>
+        <div class="hm-wrap">
+          <div class="hm-axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+          <div class="hm-grid" id="shotGrid"></div>
+        </div>
+        <div class="hm-axis-x"><span></span><span>左</span><span>中</span><span>右</span></div>
+        <div class="hm-insight" id="shotInsight"></div>
+        <div class="hm-note" id="shotNote"></div>
+      </div>
+      <div class="hm-block">
+        <div class="hm-title">パットの外し方<small id="puttN"></small></div>
+        <div class="hm-wrap">
+          <div class="hm-axis-y"><span>オーバー</span><span>ジャスト</span><span>ショート</span></div>
+          <div class="hm-grid" id="puttGridHm"></div>
+        </div>
+        <div class="hm-axis-x"><span></span><span>左</span><span>中</span><span>右</span></div>
+        <div class="hm-insight" id="puttInsight"></div>
+      </div>
+    </div>
+  </main>
+  <div class="mock-note">モック版:表示はダミーデータ(8ラウンド分を自動生成して集計)</div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ============================================================
+     ダミーデータ生成:8ラウンド、緩やかに上達していく設定
+     (実装時はラウンドごとのショット記録から同じ集計を行う)
+     ============================================================ */
+  function mulberry32(a) {
+    return function () {
+      a |= 0; a = a + 0x6D2B79F5 | 0;
+      var t = Math.imul(a ^ a >>> 15, 1 | a);
+      t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+      return ((t ^ t >>> 14) >>> 0) / 4294967296;
+    };
+  }
+  var rnd = mulberry32(20260829);
+  var DATES = ["5/9", "5/23", "6/6", "6/20", "7/4", "7/19", "8/1", "8/29"];
+  var ROUNDS = DATES.map(function (d, i) {
+    var t = i / 7; // 0→1 で上達
+    return {
+      date: d,
+      score: Math.round(97 - 5.5 * t + (rnd() - 0.5) * 5),
+      putts: Math.round(38 - 2.5 * t + (rnd() - 0.5) * 3),
+      fw: Math.round(38 + 14 * t + (rnd() - 0.5) * 12),      // %
+      gir: Math.round(8 + 10 * t + (rnd() - 0.5) * 8),       // %
+      bogeyOn: Math.round(62 + 16 * t + (rnd() - 0.5) * 10), // %
+      scr: Math.round(12 + 12 * t + (rnd() - 0.5) * 10),     // %
+      sand: Math.round(10 + 15 * t + (rnd() - 0.5) * 20),    // %
+      three: Math.round(3.4 - 1.4 * t + (rnd() - 0.5) * 1.6),
+      pen: Math.round(2.6 - 1.2 * t + (rnd() - 0.5) * 1.6),
+      nice: Math.round(40 + 12 * t + (rnd() - 0.5) * 8),     // %
+      par3: +(0.9 - 0.3 * t + (rnd() - 0.5) * 0.5).toFixed(2),
+      par4: +(1.3 - 0.35 * t + (rnd() - 0.5) * 0.4).toFixed(2),
+      par5: +(1.6 - 0.5 * t + (rnd() - 0.5) * 0.6).toFixed(2)
+    };
+  });
+  ROUNDS.forEach(function (r) {
+    if (r.three < 0) r.three = 0;
+    if (r.pen < 0) r.pen = 0;
+  });
+
+  /* クラブごとの累積ヒートマップをバイアス付きで生成 */
+  function genHeat(n, bias) {
+    // bias: {nice, row:[o,j,s], col:[l,c,r]} 確率の重み
+    var m = [[0,0,0],[0,0,0],[0,0,0]];
+    for (var k = 0; k < n; k++) {
+      if (rnd() < bias.nice) { m[1][1]++; continue; }
+      var r = pick(bias.row), c = pick(bias.col);
+      if (r === 1 && c === 1) c = rnd() < 0.5 ? 0 : 2;
+      m[r][c]++;
+    }
+    return m;
+  }
+  function pick(w) {
+    var s = w[0] + w[1] + w[2], x = rnd() * s;
+    return x < w[0] ? 0 : x < w[0] + w[1] ? 1 : 2;
+  }
+  var CLUB_HEAT = {
+    "1W": genHeat(96,  { nice: 0.42, row: [1, 5, 1], col: [3, 1, 5] }),
+    "3W": genHeat(30,  { nice: 0.40, row: [1, 4, 2], col: [2, 1, 3] }),
+    "5W": genHeat(18,  { nice: 0.38, row: [1, 3, 3], col: [2, 1, 3] }),
+    "UT": genHeat(34,  { nice: 0.44, row: [1, 3, 3], col: [2, 1, 2] }),
+    "5I": genHeat(22,  { nice: 0.36, row: [1, 2, 6], col: [1, 1, 5] }),
+    "6I": genHeat(26,  { nice: 0.40, row: [1, 2, 6], col: [1, 1, 5] }),
+    "7I": genHeat(38,  { nice: 0.45, row: [1, 2, 5], col: [1, 1, 4] }),
+    "8I": genHeat(40,  { nice: 0.47, row: [1, 2, 5], col: [1, 1, 4] }),
+    "9I": genHeat(36,  { nice: 0.50, row: [1, 2, 4], col: [1, 1, 3] }),
+    "PW": genHeat(30,  { nice: 0.52, row: [1, 2, 4], col: [2, 1, 2] }),
+    "AW": genHeat(52,  { nice: 0.55, row: [1, 3, 4], col: [2, 1, 2] }),
+    "SW": genHeat(44,  { nice: 0.50, row: [2, 3, 4], col: [2, 1, 2] })
+  };
+  var PUTT_HEAT = genHeat(150, { nice: 0.30, row: [1, 3, 6], col: [3, 4, 1] });
+
+  /* ---------- ヘッダー ---------- */
+  var scores = ROUNDS.map(function (r) { return r.score; });
+  var recent3 = scores.slice(-3);
+  $("avgRecent").textContent = (recent3.reduce(function (a, b) { return a + b; }, 0) / 3).toFixed(1);
+  $("best").textContent = Math.min.apply(null, scores);
+  $("avgAll").textContent = (scores.reduce(function (a, b) { return a + b; }, 0) / scores.length).toFixed(1);
+
+  /* ---------- 折れ線チャート(SVG手組み) ---------- */
+  function lineChart(el, values, labels, opts) {
+    var W = 420, H = opts.height || 150, padL = 30, padR = 14, padT = 16, padB = opts.showX === false ? 8 : 24;
+    var lo = Math.min.apply(null, values), hi = Math.max.apply(null, values);
+    var span = Math.max(hi - lo, 4);
+    lo = Math.floor(lo - span * 0.15); hi = Math.ceil(hi + span * 0.15);
+    var x = function (i) { return padL + (W - padL - padR) * (values.length === 1 ? 0.5 : i / (values.length - 1)); };
+    var y = function (v) { return padT + (H - padT - padB) * (1 - (v - lo) / (hi - lo)); };
+    var ticks = [lo, Math.round((lo + hi) / 2), hi];
+    var s = '<svg viewBox="0 0 ' + W + ' ' + H + '" style="width:100%;display:block;">';
+    ticks.forEach(function (t) {
+      s += '<line x1="' + padL + '" y1="' + y(t) + '" x2="' + (W - padR) + '" y2="' + y(t) + '" stroke="#eceae4" stroke-width="1"/>';
+      s += '<text x="' + (padL - 5) + '" y="' + (y(t) + 3.5) + '" font-size="10" fill="#898781" text-anchor="end">' + t + '</text>';
+    });
+    if (opts.title) {
+      s += '<text x="' + padL + '" y="11" font-size="10" font-weight="700" fill="#52514e">' + opts.title + '</text>';
+    }
+    var pts = values.map(function (v, i) { return x(i) + "," + y(v); }).join(" ");
+    s += '<polyline points="' + pts + '" fill="none" stroke="#0f7b4d" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    var minV = Math.min.apply(null, values);
+    values.forEach(function (v, i) {
+      var isLast = i === values.length - 1;
+      var isBest = opts.markMin && v === minV;
+      s += '<circle cx="' + x(i) + '" cy="' + y(v) + '" r="4" fill="' + (isBest ? "#0a5c39" : "#0f7b4d") + '" stroke="#fcfcfb" stroke-width="2"/>';
+      if (isLast || isBest) {
+        s += '<text x="' + x(i) + '" y="' + (y(v) - 9) + '" font-size="11" font-weight="700" fill="#0b0b0b" text-anchor="middle">' + v + (isBest && !isLast ? " ★" : "") + '</text>';
+      }
+      if (opts.showX !== false) {
+        s += '<text x="' + x(i) + '" y="' + (H - 7) + '" font-size="9" fill="#898781" text-anchor="middle">' + labels[i] + '</text>';
+      }
+    });
+    s += '</svg>';
+    el.innerHTML = s;
+  }
+  // 直近20ラウンドに絞って表示(古い分は切り捨て)
+  var VIEW = ROUNDS.slice(-20);
+  var viewDates = VIEW.map(function (r) { return r.date; });
+  lineChart($("scoreChart"), VIEW.map(function (r) { return r.score; }), viewDates,
+    { markMin: true, showX: false, height: 130, title: "スコア" });
+  lineChart($("puttChart"), VIEW.map(function (r) { return r.putts; }), viewDates,
+    { markMin: false, height: 110, title: "パット" });
+
+  /* ---------- KPI(直近3R vs 前3R) ---------- */
+  function avg(arr, key) {
+    return arr.reduce(function (a, r) { return a + r[key]; }, 0) / arr.length;
+  }
+  var recent = ROUNDS.slice(-3), prev = ROUNDS.slice(-6, -3);
+  var KPIS = [
+    { key: "putts", label: "パット/R", unit: "", digits: 1, lowerBetter: true },
+    { key: "fw", label: "FWキープ", unit: "%", digits: 0 },
+    { key: "gir", label: "パーオン", unit: "%", digits: 0 },
+    { key: "bogeyOn", label: "ボギーオン", unit: "%", digits: 0 },
+    { key: "scr", label: "寄せワン", unit: "%", digits: 0 },
+    { key: "sand", label: "サンドセーブ", unit: "%", digits: 0 },
+    { key: "three", label: "3パット/R", unit: "回", digits: 1, lowerBetter: true },
+    { key: "pen", label: "ペナルティ/R", unit: "打", digits: 1, lowerBetter: true },
+    { key: "nice", label: "ナイス率", unit: "%", digits: 0 }
+  ];
+  KPIS.forEach(function (k) {
+    var now = avg(recent, k.key), before = avg(prev, k.key);
+    var diff = now - before;
+    var good = k.lowerBetter ? diff < 0 : diff > 0;
+    var cls = Math.abs(diff) < 0.05 ? "flat" : good ? "up" : "down";
+    var arrow = Math.abs(diff) < 0.05 ? "→" : diff > 0 ? "▲" : "▼";
+    var d = document.createElement("div");
+    d.className = "kpi";
+    d.innerHTML = '<div class="v">' + now.toFixed(k.digits) + '<small>' + k.unit + '</small></div>'
+      + '<div class="k">' + k.label + '</div>'
+      + '<div class="d ' + cls + '">' + arrow + ' ' + Math.abs(diff).toFixed(k.digits === 0 ? 0 : 1) + k.unit + '</div>';
+    $("kpiGrid").appendChild(d);
+  });
+
+  /* ---------- ホールタイプ別 ---------- */
+  [{ key: "par3", label: "ショート(Par3)", n: 32 }, { key: "par4", label: "ミドル(Par4)", n: 80 }, { key: "par5", label: "ロング(Par5)", n: 32 }].forEach(function (t) {
+    var v = avg(ROUNDS, t.key);
+    var d = document.createElement("div");
+    d.className = "kpi";
+    d.innerHTML = '<div class="v">' + (v >= 0 ? "+" : "") + v.toFixed(1) + '</div><div class="k">' + t.label + ' ×' + t.n + 'H</div>';
+    $("typeGrid").appendChild(d);
+  });
+
+  /* ---------- コース別・ホール別 ---------- */
+  var COURSES = [
+    { name: "○○CC(ホーム)", rounds: 5,
+      pars: [4,4,3,5,4,3,4,5,4, 4,3,5,4,4,4,3,5,4] },
+    { name: "△△GC", rounds: 3,
+      pars: [4,3,4,5,4,4,3,4,5, 4,4,3,5,4,4,5,3,4] }
+  ];
+  COURSES.forEach(function (c, ci) {
+    c.avgs = c.pars.map(function (p, i) {
+      var base = 0.9 + (p === 5 ? 0.3 : p === 3 ? -0.2 : 0);
+      // 苦手ホールをいくつか作る
+      if (ci === 0 && (i === 15 || i === 3)) base += 0.9;
+      if (ci === 1 && i === 8) base += 0.8;
+      return +(base + (rnd() - 0.5) * 0.6).toFixed(1);
+    });
+  });
+  var currentCourse = 0;
+  function renderCourse() {
+    var c = COURSES[currentCourse];
+    var holes = $("courseHoles");
+    holes.innerHTML = "";
+    var maxAvg = Math.max.apply(null, c.avgs);
+    var minAvg = Math.min.apply(null, c.avgs);
+    c.avgs.forEach(function (a, i) {
+      var d = document.createElement("div");
+      d.className = "hole-tile" + (a >= maxAvg - 0.15 ? " worst" : a <= minAvg + 0.15 ? " best" : "");
+      d.innerHTML = '<div class="no">' + (i + 1) + ' <span style="opacity:.7">P' + c.pars[i] + '</span></div>'
+        + '<div class="avg">' + (a >= 0 ? "+" : "") + a.toFixed(1) + '</div>';
+      holes.appendChild(d);
+    });
+    var wi = c.avgs.indexOf(maxAvg);
+    $("courseInsight").innerHTML = "要対策は<b>" + (wi + 1) + "番(Par" + c.pars[wi] + ")</b>の平均+"
+      + maxAvg.toFixed(1) + "。ここを毎回ボギーで収めるだけで" + c.name.replace(/\(.*\)/, "")
+      + "のスコアは約" + Math.max(1, Math.round(maxAvg - 1)) + "打縮みます。";
+  }
+  COURSES.forEach(function (c, i) {
+    var b = document.createElement("button");
+    b.className = "seg-btn" + (i === currentCourse ? " selected" : "");
+    b.textContent = c.name + " ×" + c.rounds + "R";
+    b.dataset.i = i;
+    b.addEventListener("click", function () {
+      currentCourse = i;
+      Array.prototype.forEach.call($("courseRow").children, function (x) {
+        x.classList.toggle("selected", +x.dataset.i === i);
+      });
+      renderCourse();
+    });
+    $("courseRow").appendChild(b);
+  });
+  renderCourse();
+
+  /* ---------- ヒートマップ ---------- */
+  var RAMP = ["#eef5f1", "#d4e9de", "#aed7c2", "#83c1a2", "#54a87f", "#2b8f60", "#0f7b4d"];
+  function sumHeat(mats) {
+    var m = [[0,0,0],[0,0,0],[0,0,0]];
+    mats.forEach(function (a) {
+      for (var r = 0; r < 3; r++) for (var c = 0; c < 3; c++) m[r][c] += a[r][c];
+    });
+    return m;
+  }
+  function heatCount(m) {
+    var n = 0;
+    m.forEach(function (r) { r.forEach(function (v) { n += v; }); });
+    return n;
+  }
+  function buildHeatmap(m, gridEl, nEl, insightEl, labels) {
+    gridEl.innerHTML = "";
+    var n = heatCount(m), max = 0;
+    m.forEach(function (r) { r.forEach(function (v) { if (v > max) max = v; }); });
+    nEl.textContent = "全" + n + "球";
+    for (var ri = 0; ri < 3; ri++) {
+      for (var ci = 0; ci < 3; ci++) {
+        var v = m[ri][ci];
+        var pct = n ? Math.round(v / n * 100) : 0;
+        var step = max ? Math.round(v / max * (RAMP.length - 1)) : 0;
+        var cell = document.createElement("div");
+        cell.className = "hm-cell";
+        cell.style.background = RAMP[step];
+        cell.style.color = step >= 4 ? "#ffffff" : "#0b0b0b";
+        cell.innerHTML = v ? '<span class="pct">' + pct + '%</span><span class="cnt">' + v + '球</span>' : '<span class="cnt" style="opacity:.5">-</span>';
+        gridEl.appendChild(cell);
+      }
+    }
+    var nice = m[1][1], missTotal = n - nice;
+    var best = { v: -1, ri: 0, ci: 0 };
+    for (var r2 = 0; r2 < 3; r2++) for (var c2 = 0; c2 < 3; c2++) {
+      if (r2 === 1 && c2 === 1) continue;
+      if (m[r2][c2] > best.v) best = { v: m[r2][c2], ri: r2, ci: c2 };
+    }
+    var rowName = ["オーバー", "ジャスト", "ショート"][best.ri];
+    var colName = ["左", "真ん中", "右"][best.ci];
+    var niceShare = n ? Math.round(nice / n * 100) : 0;
+    var missShare = missTotal ? Math.round(best.v / missTotal * 100) : 0;
+    // 行・列単位の偏りも見る(中央セルはミスから除外済み)
+    var rowSum = [0, 0, 0], colSum = [0, 0, 0];
+    for (var r3 = 0; r3 < 3; r3++) for (var c3 = 0; c3 < 3; c3++) {
+      if (r3 === 1 && c3 === 1) continue;
+      rowSum[r3] += m[r3][c3]; colSum[c3] += m[r3][c3];
+    }
+    var axes = [
+      { share: rowSum[0], name: "オーバー系" }, { share: rowSum[2], name: "ショート系" },
+      { share: colSum[0], name: "左系" }, { share: colSum[2], name: "右系" }
+    ].sort(function (a, b) { return b.share - a.share; });
+    var axShare = missTotal ? Math.round(axes[0].share / missTotal * 100) : 0;
+    if (missTotal && missShare >= 34) {
+      insightEl.innerHTML = labels.center + "率" + niceShare + "%。ミスは<b>" + colName + "・" + rowName
+        + "</b>に集中(ミスの" + missShare + "%)。" + labels.hint;
+    } else if (missTotal && axShare >= 50) {
+      insightEl.innerHTML = labels.center + "率" + niceShare + "%。ミスは<b>" + axes[0].name
+        + "</b>に偏り(ミスの" + axShare + "%)。" + labels.hint;
+    } else {
+      insightEl.innerHTML = labels.center + "率<b>" + niceShare + "%</b>。ミスの散り方に大きな偏りはありません。";
+    }
+  }
+
+  var GROUPS = [
+    { key: "DR", label: "ドライバー", clubs: ["1W"], hint: "OBの方向と合わせて曲がり傾向をチェック。" },
+    { key: "WD", label: "ウッド・UT", clubs: ["3W", "5W", "UT"], hint: "長物は無理せずアイアン刻みも選択肢に。" },
+    { key: "IR", label: "アイアン", clubs: ["5I", "6I", "7I", "8I", "9I"], hint: "番手を1つ上げる or 振り遅れのチェックを。" },
+    { key: "WG", label: "ウェッジ", clubs: ["PW", "AW", "SW"], hint: "100y以内の精度はスコア直結。距離の打ち分け練習を。" },
+    { key: "CLUB", label: "クラブ別", clubs: null, hint: "" }
+  ];
+  var CLUB_ORDER = ["1W", "3W", "5W", "UT", "5I", "6I", "7I", "8I", "9I", "PW", "AW", "SW"];
+  var currentGroup = "IR", currentClub = "7I";
+
+  function renderShotHm() {
+    var g = GROUPS.filter(function (x) { return x.key === currentGroup; })[0];
+    var m, title, hint;
+    if (g.key === "CLUB") {
+      m = CLUB_HEAT[currentClub];
+      title = currentClub; hint = "";
+    } else {
+      m = sumHeat(g.clubs.map(function (c) { return CLUB_HEAT[c]; }));
+      title = g.label; hint = g.hint;
+    }
+    $("shotTitle").textContent = title;
+    buildHeatmap(m, $("shotGrid"), $("shotN"), $("shotInsight"), { center: "ナイス", hint: hint });
+    var n = heatCount(m);
+    $("shotNote").textContent = n < 10 ? "球数が少ないため参考程度(" + n + "球)。" : "";
+  }
+
+  var segRow = $("segRow"), clubPick = $("clubPick");
+  GROUPS.forEach(function (g) {
+    var b = document.createElement("button");
+    b.className = "seg-btn" + (g.key === currentGroup ? " selected" : "");
+    b.textContent = g.label;
+    b.dataset.key = g.key;
+    b.addEventListener("click", function () {
+      currentGroup = g.key;
+      Array.prototype.forEach.call(segRow.children, function (x) {
+        x.classList.toggle("selected", x.dataset.key === g.key);
+      });
+      clubPick.classList.toggle("show", g.key === "CLUB");
+      if (g.key === "CLUB") {
+        Array.prototype.forEach.call(clubPick.children, function (x) {
+          x.classList.toggle("selected", x.dataset.club === currentClub);
+        });
+      }
+      renderShotHm();
+    });
+    segRow.appendChild(b);
+  });
+  CLUB_ORDER.forEach(function (c) {
+    var b = document.createElement("button");
+    b.className = "seg-btn";
+    b.textContent = c;
+    b.dataset.club = c;
+    b.addEventListener("click", function () {
+      currentClub = c;
+      Array.prototype.forEach.call(clubPick.children, function (x) {
+        x.classList.toggle("selected", x.dataset.club === c);
+      });
+      renderShotHm();
+    });
+    clubPick.appendChild(b);
+  });
+  renderShotHm();
+  buildHeatmap(PUTT_HEAT, $("puttGridHm"), $("puttN"), $("puttInsight"),
+    { center: "惜しい", hint: "距離感か打ち出し方向、偏っている側を練習テーマに。" });
+})();
+</script>
+</body>
+</html>
