@@ -1,4 +1,4 @@
-import { getRound, getCourse, getCourses, getSettings, saveRound, saveCourse } from "./db.js";
+import { getRound, getCourse, getCourses, getSettings, saveRound, saveCourse, deleteRound } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, CLUB_GROUPS, activeHoles
 } from "./stats.js";
@@ -263,5 +263,20 @@ function formatDateJP(iso) {
     round.courseId = pendingCourseId;
     await saveRound(round);
     location.reload();
+  });
+
+  /* ---- メニュー(⋯)からラウンド削除 ---- */
+  $("menuBtn").addEventListener("click", () => $("menuOverlay").classList.add("show"));
+  $("closeMenuBtn").addEventListener("click", () => $("menuOverlay").classList.remove("show"));
+  $("deleteRoundBtn").addEventListener("click", () => {
+    $("menuOverlay").classList.remove("show");
+    $("deleteConfirmText").textContent =
+      `${round.date} ${course ? course.name : "コース不明"}(スコア${rv.total})を削除しますか?`;
+    $("deleteConfirmOverlay").classList.add("show");
+  });
+  $("deleteConfirmNo").addEventListener("click", () => $("deleteConfirmOverlay").classList.remove("show"));
+  $("deleteConfirmYes").addEventListener("click", async () => {
+    await deleteRound(roundId);
+    location.href = "index.html";
   });
 })();

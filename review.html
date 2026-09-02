@@ -12,10 +12,13 @@
 <body>
 <div class="app">
   <header class="hero">
-    <div class="h-sub">
-      <a href="index.html" style="color:#fff;opacity:.85;">&larr; ホーム</a> ・
-      <span id="headerDate"></span>
-      <button type="button" id="courseNameBtn" class="course-name-btn"></button>
+    <div class="hero-top-row">
+      <div class="h-sub">
+        <a href="index.html" style="color:#fff;opacity:.85;">&larr; ホーム</a> ・
+        <span id="headerDate"></span>
+        <button type="button" id="courseNameBtn" class="course-name-btn"></button>
+      </div>
+      <button type="button" id="menuBtn" class="menu-btn">⋯</button>
     </div>
     <div class="h-title">ラウンド振り返り</div>
     <div class="hero">
@@ -81,6 +84,28 @@
       <div class="hm-note" style="margin-top:8px;">Parをタップすると3/4/5に修正できます(記録済みホール)。</div>
     </div>
   </main>
+</div>
+
+<div class="overlay" id="menuOverlay">
+  <div class="sheet">
+    <h2>メニュー</h2>
+    <div class="sheet-btns">
+      <button class="sheet-btn danger" id="deleteRoundBtn">このラウンドを削除</button>
+      <button class="sheet-btn ghost" id="closeMenuBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="deleteConfirmOverlay">
+  <div class="sheet">
+    <h2>ラウンドを削除しますか?</h2>
+    <p class="sheet-text" id="deleteConfirmText"></p>
+    <p class="sheet-text">この操作は取り消せません。</p>
+    <div class="sheet-btns">
+      <button class="sheet-btn danger" id="deleteConfirmYes">削除する</button>
+      <button class="sheet-btn ghost" id="deleteConfirmNo">戻る</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="parEditOverlay">
