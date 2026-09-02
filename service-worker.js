@@ -1,6 +1,6 @@
 // オフライン完全動作のためのcache-first Service Worker。
 // バージョン文字列を上げるとinstall時に再キャッシュ、activate時に旧キャッシュを破棄する。
-const CACHE_VERSION = "golf-log-v1";
+const CACHE_VERSION = "golf-log-v2";
 const PRECACHE_URLS = [
   "./",
   "index.html",
@@ -14,6 +14,7 @@ const PRECACHE_URLS = [
   "js/db.js",
   "js/clubs.js",
   "js/stats.js",
+  "js/presetCourses.js",
   "js/backup.js",
   "js/sw-register.js",
   "js/home.js",
