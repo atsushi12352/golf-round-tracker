@@ -1,5 +1,6 @@
 // IndexedDBラッパー(golf-log DB: settings / courses / rounds)
 import { DEFAULT_CLUBS, DEFAULT_KPIS } from "./clubs.js";
+import { PRESET_COURSES } from "./presetCourses.js";
 
 const DB_NAME = "golf-log";
 const DB_VERSION = 1;
@@ -86,7 +87,19 @@ export async function saveSettings(settings) {
 }
 
 /* ---------- courses ---------- */
+// 3-1: 未登録のプリセットコースがあれば追加する(同名の手動登録済みコースがあれば作らない)
+export async function ensurePresetCourses() {
+  const existing = await dbGetAll("courses");
+  const existingNames = new Set(existing.map((c) => c.name));
+  for (const preset of PRESET_COURSES) {
+    if (!existingNames.has(preset.name)) {
+      await dbPut("courses", { id: preset.id, name: preset.name, pars: preset.pars.slice() });
+    }
+  }
+}
+
 export async function getCourses() {
+  await ensurePresetCourses();
   return dbGetAll("courses");
 }
 
