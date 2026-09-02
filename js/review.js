@@ -154,7 +154,8 @@ function formatDateJP(iso) {
     const d = hs.score - hs.par;
     const cls = d > 0 ? "diff-over" : d < 0 ? "diff-under" : "diff-even";
     const notes = [];
-    if (hs.pen) notes.push("OB");
+    if (hs.obCount) notes.push("OB");
+    if (hs.penaltyCount) notes.push("ペナルティ");
     if (hs.three) notes.push("3パット");
     if (hs.choro) notes.push("ダフリ");
     if (hs.bunker) notes.push("バンカー");

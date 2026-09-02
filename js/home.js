@@ -1,5 +1,5 @@
 import { getRounds, getCourses } from "./db.js";
-import { playedHoleCount } from "./stats.js";
+import { playedHoleCount, holeStats } from "./stats.js";
 import { daysSinceLastBackup, STALE_DAYS } from "./backup.js";
 
 (async function () {
@@ -24,8 +24,7 @@ import { daysSinceLastBackup, STALE_DAYS } from "./backup.js";
       const parTotal = r.holes.slice(0, played).reduce((a, h) => a + h.par, 0);
       let score = 0;
       r.holes.slice(0, played).forEach((h) => {
-        const pen = h.shots.filter((s) => s.kind === "ob").length;
-        score += h.shots.length + pen;
+        score += holeStats(h).score;
       });
       const toPar = score - parTotal;
 

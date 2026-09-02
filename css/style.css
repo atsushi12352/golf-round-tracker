@@ -260,7 +260,7 @@ header.hole-header {
 .axis-x span { font-size: 11px; color: var(--sub); text-align: center; }
 .axis-x span:first-child { visibility: hidden; }
 
-.special-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.special-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .sp-btn {
   border: 1px solid var(--line); background: #fff; border-radius: 12px;
   min-height: 52px; font-size: 13px; font-weight: 600;

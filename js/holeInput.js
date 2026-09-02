@@ -103,6 +103,8 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
         if (!wasEdit) holeOut();
       } else if (r.indexOf("OB") === 0) {
         record({ club: selectedClub, lie: selectedLie, result: r, kind: "ob" });
+      } else if (r === "ペナルティ") {
+        record({ club: selectedClub, lie: selectedLie, result: "ペナルティ", kind: "penalty" });
       } else {
         record({ club: selectedClub, lie: selectedLie, result: r, kind: "miss" });
       }
@@ -153,7 +155,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
   });
 
   /* ---- record / undo ---- */
-  function penalties() { return shots.filter((s) => s.kind === "ob").length; }
+  function penalties() { return shots.filter((s) => s.kind === "ob" || s.kind === "penalty").length; }
   function score() { return shots.length + penalties(); }
   function putts() { return shots.filter((s) => s.club === "PT").length; }
 
@@ -172,7 +174,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     setLie(inferLie(shots), true);
     updatePuttDistRow();
     render();
-    flash(shot.club + " " + shot.result, shot.kind === "ob" ? "+1打罰" : (shot.dist ? shot.dist + "パット" : (shot.lie !== "グリーン" ? shot.lie + "から" : "")));
+    flash(shot.club + " " + shot.result, (shot.kind === "ob" || shot.kind === "penalty") ? "+1打罰" : (shot.dist ? shot.dist + "パット" : (shot.lie !== "グリーン" ? shot.lie + "から" : "")));
     if (navigator.vibrate) navigator.vibrate(10);
   }
 
@@ -219,7 +221,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     } else {
       shots.forEach((s, i) => {
         const chip = document.createElement("span");
-        chip.className = "log-chip" + (s.kind === "ob" ? " bad" : s.kind === "miss" ? " warn" : "");
+        chip.className = "log-chip" + ((s.kind === "ob" || s.kind === "penalty") ? " bad" : s.kind === "miss" ? " warn" : "");
         chip.textContent = (i + 1) + " " + (s.lie === "グリーン" ? (s.dist ? s.dist + " " : "") : s.lie + " ") + s.club + " " + s.result;
         log.appendChild(chip);
       });
@@ -266,7 +268,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
       div.innerHTML = '<span class="no">' + (i + 1) + '打</span>'
         + '<span class="club">' + s.club + '</span>'
         + '<span class="res">' + s.result + ' <small style="color:var(--sub);font-size:11px;">' + s.lie + (s.dist ? "・" + s.dist : "") + '</small></span>'
-        + (s.kind === "ob" ? '<span class="tag bad">+1罰</span>'
+        + ((s.kind === "ob" || s.kind === "penalty") ? '<span class="tag bad">+1罰</span>'
           : s.kind === "in" || s.kind === "nice" ? '<span class="tag">Good</span>'
           : s.kind === "miss" ? '<span class="tag warn">ミス</span>' : "");
       const fixBtn = document.createElement("button");

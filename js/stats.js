@@ -5,6 +5,7 @@ import { PUTT_DISTS } from "./clubs.js";
 export function inferLie(shots) {
   if (shots.length === 0) return "ティー";
   const last = shots[shots.length - 1];
+  if (last.kind === "penalty") return "ラフ";
   if (last.kind === "ob") return last.lie;
   if (last.kind === "miss") return last.lie;
   if (last.result.indexOf("左") >= 0 || last.result.indexOf("右") >= 0) return "ラフ";
@@ -19,7 +20,9 @@ export function inferPuttDist(shots) {
 /* ---------- §6.1 ホール単位 ---------- */
 export function holeStats(hole) {
   const shots = hole.shots || [];
-  const pen = shots.filter((s) => s.kind === "ob").length;
+  const obCount = shots.filter((s) => s.kind === "ob").length;
+  const penaltyCount = shots.filter((s) => s.kind === "penalty").length;
+  const pen = obCount + penaltyCount;
   const putts = shots.filter((s) => s.club === "PT").length;
   const score = shots.length + pen;
   const toGreen = shots.length - putts + pen;
@@ -31,10 +34,11 @@ export function holeStats(hole) {
   const tee = shots[0];
   let fwKeep = null;
   if (hole.par >= 4 && tee) {
-    fwKeep = tee.kind !== "ob" && tee.result.indexOf("左") < 0 && tee.result.indexOf("右") < 0;
+    fwKeep = tee.kind !== "ob" && tee.kind !== "penalty" && tee.result.indexOf("左") < 0 && tee.result.indexOf("右") < 0;
   }
   return {
-    par: hole.par, score, putts, pen, gir, bogeyOn, scramble, fwKeep, bunker,
+    number: hole.number, par: hole.par, score, putts, pen, obCount, penaltyCount,
+    gir, bogeyOn, scramble, fwKeep, bunker,
     choro, three: putts >= 3, sandSave: bunker && score <= hole.par
   };
 }
@@ -94,15 +98,18 @@ function breakdownText(items, keyFn) {
 export function lossTop3(holes) {
   const allShots = holes.flatMap((h) => h.shots);
   const obShots = allShots.filter((s) => s.kind === "ob");
+  const penaltyShots = allShots.filter((s) => s.kind === "penalty");
   const missShots = allShots.filter((s) => s.kind === "miss");
   const threePuttHoles = holes.filter((h) => holeStats(h).three);
 
   const losses = [];
-  if (obShots.length) {
-    const dir = breakdownText(obShots, (s) => (s.result.indexOf("左") >= 0 ? "左" : s.result.indexOf("右") >= 0 ? "右" : "その他"));
+  if (obShots.length + penaltyShots.length) {
+    const parts = [];
+    if (obShots.length) parts.push(`OB${obShots.length}`);
+    if (penaltyShots.length) parts.push(`ペナ${penaltyShots.length}`);
     losses.push({
-      name: `OB ${obShots.length}発(${dir})`,
-      loss: obShots.length * 2
+      name: `OB・ペナルティ ${obShots.length + penaltyShots.length}発(${parts.join("・")})`,
+      loss: (obShots.length + penaltyShots.length) * 2
     });
   }
   if (missShots.length) {
@@ -270,7 +277,7 @@ export function computeReview(round) {
   const total = HS.reduce((a, h) => a + h.score, 0);
   const parTotal = HS.reduce((a, h) => a + h.par, 0);
   const putts = HS.reduce((a, h) => a + h.putts, 0);
-  const obTotal = HS.reduce((a, h) => a + h.pen, 0);
+  const obTotal = HS.reduce((a, h) => a + h.obCount, 0);
   const threePutts = HS.filter((h) => h.three).length;
   const allShots = holes.flatMap((h) => h.shots);
 
