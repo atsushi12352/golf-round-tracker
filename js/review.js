@@ -1,4 +1,4 @@
-import { getRound, getCourse, getSettings, saveRound, saveCourse } from "./db.js";
+import { getRound, getCourse, getCourses, getSettings, saveRound, saveCourse } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, CLUB_GROUPS, activeHoles
 } from "./stats.js";
@@ -17,10 +17,11 @@ function formatDateJP(iso) {
   const round = await getRound(roundId);
   if (!round) { location.href = "index.html"; return; }
 
-  const [course, settings] = await Promise.all([getCourse(round.courseId), getSettings()]);
+  const [course, settings, allCourses] = await Promise.all([getCourse(round.courseId), getSettings(), getCourses()]);
   const rv = computeReview(round);
 
-  $("headerSub").textContent = `${formatDateJP(round.date)} ${course ? course.name : ""}`;
+  $("headerDate").textContent = formatDateJP(round.date);
+  $("courseNameBtn").textContent = course ? course.name : "コース不明";
   $("heroScore").textContent = rv.total;
   $("heroToPar").textContent = (rv.toPar >= 0 ? "+" : "") + rv.toPar + ` (Par${rv.parTotal})`;
   [`パット ${rv.putts}`, `OB ${rv.obTotal}`, `3パット ${rv.threePutts}回`].forEach((t) => {
@@ -170,22 +171,46 @@ function formatDateJP(iso) {
     $("holeRows").appendChild(tr);
   });
 
-  /* ---- Par修正(2-2: 過去ラウンドのパー修正) ---- */
-  let pendingPar = null;
-  Array.prototype.forEach.call(document.querySelectorAll(".par-tap"), (btn) => {
-    btn.addEventListener("click", async () => {
-      const i = +btn.dataset.i;
-      const rawHole = round.holes[i];
-      const oldPar = rawHole.par;
-      const newPar = oldPar === 3 ? 4 : oldPar === 4 ? 5 : 3;
-      rawHole.par = newPar;
-      await saveRound(round);
-      pendingPar = { number: rawHole.number, newPar };
-      $("parConfirmText").textContent =
-        `${rawHole.number}番のParを${oldPar}→${newPar}に変更しました。`
-        + `コース「${course ? course.name : "不明"}」のPar情報(以後このコースを選んだ時の初期値)も更新しますか?`;
-      $("parConfirmOverlay").classList.add("show");
+  /* ---- Par修正(2-2 + 5-1: モーダルで選んでから確定する) ---- */
+  let editingIndex = null;
+  let parEditSelected = null;
+  function renderParEditChips(current) {
+    parEditSelected = current;
+    Array.prototype.forEach.call(document.querySelectorAll("#parEditChips .chip-toggle"), (b) => {
+      b.classList.toggle("selected", +b.dataset.par === current);
     });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#parEditChips .chip-toggle"), (b) => {
+    b.addEventListener("click", () => renderParEditChips(+b.dataset.par));
+  });
+  Array.prototype.forEach.call(document.querySelectorAll(".par-tap"), (btn) => {
+    btn.addEventListener("click", () => {
+      editingIndex = +btn.dataset.i;
+      const rawHole = round.holes[editingIndex];
+      $("parEditTitle").textContent = `${rawHole.number}番ホールのパーを変更`;
+      renderParEditChips(rawHole.par);
+      $("parEditOverlay").classList.add("show");
+    });
+  });
+  $("parEditCancel").addEventListener("click", () => {
+    $("parEditOverlay").classList.remove("show");
+    editingIndex = null;
+  });
+
+  let pendingPar = null;
+  $("parEditApply").addEventListener("click", async () => {
+    $("parEditOverlay").classList.remove("show");
+    const rawHole = round.holes[editingIndex];
+    const oldPar = rawHole.par;
+    editingIndex = null;
+    if (parEditSelected === oldPar) return;
+    rawHole.par = parEditSelected;
+    await saveRound(round);
+    pendingPar = { number: rawHole.number, newPar: parEditSelected };
+    $("parConfirmText").textContent =
+      `${rawHole.number}番のParを${oldPar}→${parEditSelected}に変更しました。`
+      + `コース「${course ? course.name : "不明"}」のPar情報(以後このコースを選んだ時の初期値)も更新しますか?`;
+    $("parConfirmOverlay").classList.add("show");
   });
   $("parConfirmYes").addEventListener("click", async () => {
     if (course && pendingPar) {
@@ -195,6 +220,48 @@ function formatDateJP(iso) {
     location.reload();
   });
   $("parConfirmNo").addEventListener("click", () => {
+    location.reload();
+  });
+
+  /* ---- 5-2: ラウンドのコース付け替え ---- */
+  let pendingCourseId = null;
+  $("courseNameBtn").addEventListener("click", () => {
+    const picks = allCourses.filter((c) => c.id !== round.courseId);
+    const chipsEl = $("coursePickChips");
+    chipsEl.innerHTML = "";
+    if (picks.length === 0) {
+      chipsEl.innerHTML = '<div class="empty-state">他に登録されているコースがありません。</div>';
+    } else {
+      picks.forEach((c) => {
+        const b = document.createElement("button");
+        b.className = "chip-toggle";
+        b.type = "button";
+        b.textContent = c.name;
+        b.addEventListener("click", () => {
+          $("coursePickOverlay").classList.remove("show");
+          const activeH = activeHoles(round);
+          const mismatch = activeH.filter((h) => c.pars[h.number - 1] !== h.par).length;
+          pendingCourseId = c.id;
+          $("courseReassignText").textContent = `このラウンドを「${c.name}」の記録として扱います。よろしいですか?`;
+          $("courseReassignMismatch").textContent = mismatch > 0
+            ? `パー構成がコース情報と${mismatch}ホール分異なります(記録はそのまま保持されます)。`
+            : "";
+          $("courseReassignConfirmOverlay").classList.add("show");
+        });
+        chipsEl.appendChild(b);
+      });
+    }
+    $("coursePickOverlay").classList.add("show");
+  });
+  $("coursePickCancel").addEventListener("click", () => $("coursePickOverlay").classList.remove("show"));
+  $("courseReassignNo").addEventListener("click", () => {
+    pendingCourseId = null;
+    $("courseReassignConfirmOverlay").classList.remove("show");
+  });
+  $("courseReassignYes").addEventListener("click", async () => {
+    if (!pendingCourseId) return;
+    round.courseId = pendingCourseId;
+    await saveRound(round);
     location.reload();
   });
 })();

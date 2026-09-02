@@ -12,7 +12,11 @@
 <body>
 <div class="app">
   <header class="hero">
-    <div class="h-sub"><a href="index.html" style="color:#fff;opacity:.85;">&larr; ホーム</a> ・ <span id="headerSub"></span></div>
+    <div class="h-sub">
+      <a href="index.html" style="color:#fff;opacity:.85;">&larr; ホーム</a> ・
+      <span id="headerDate"></span>
+      <button type="button" id="courseNameBtn" class="course-name-btn"></button>
+    </div>
     <div class="h-title">ラウンド振り返り</div>
     <div class="hero">
       <span class="score" id="heroScore">-</span>
@@ -79,6 +83,21 @@
   </main>
 </div>
 
+<div class="overlay" id="parEditOverlay">
+  <div class="sheet">
+    <h2 id="parEditTitle">ホールのパーを変更</h2>
+    <div class="chip-grid" id="parEditChips" style="justify-content:center; margin-bottom:16px;">
+      <button class="chip-toggle" type="button" data-par="3">Par3</button>
+      <button class="chip-toggle" type="button" data-par="4">Par4</button>
+      <button class="chip-toggle" type="button" data-par="5">Par5</button>
+    </div>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="parEditApply">変更する</button>
+      <button class="sheet-btn ghost" id="parEditCancel">やめる</button>
+    </div>
+  </div>
+</div>
+
 <div class="overlay" id="parConfirmOverlay">
   <div class="sheet">
     <h2>コース情報にも反映しますか?</h2>
@@ -86,6 +105,28 @@
     <div class="sheet-btns">
       <button class="sheet-btn primary" id="parConfirmYes">コース情報にも反映</button>
       <button class="sheet-btn ghost" id="parConfirmNo">このラウンドのみ</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="coursePickOverlay">
+  <div class="sheet">
+    <h2>コースを選び直す</h2>
+    <div class="chip-grid" id="coursePickChips" style="margin-bottom:16px;"></div>
+    <div class="sheet-btns">
+      <button class="sheet-btn ghost" id="coursePickCancel">やめる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="courseReassignConfirmOverlay">
+  <div class="sheet">
+    <h2>コースを付け替えますか?</h2>
+    <p class="sheet-text" id="courseReassignText"></p>
+    <p class="sheet-text" id="courseReassignMismatch" style="color:var(--warn);"></p>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="courseReassignYes">付け替える</button>
+      <button class="sheet-btn ghost" id="courseReassignNo">やめる</button>
     </div>
   </div>
 </div>
