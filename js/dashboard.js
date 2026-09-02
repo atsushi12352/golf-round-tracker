@@ -107,8 +107,7 @@ import {
     });
     if (maxAvg !== null) {
       const wi = c.avgs.indexOf(maxAvg);
-      $("courseInsight").innerHTML = `要対策は<b>${wi + 1}番(Par${c.course.pars[wi]})</b>の平均+${maxAvg.toFixed(1)}。`
-        + `ここを毎回ボギーで収めるだけで${c.course.name.replace(/\(.*\)/, "")}のスコアは約${Math.max(1, Math.round(maxAvg - 1))}打縮みます。`;
+      $("courseInsight").innerHTML = `要対策は<b>${wi + 1}番(Par${c.course.pars[wi]})</b>の平均+${maxAvg.toFixed(1)}。`;
     } else {
       $("courseInsight").textContent = "";
     }
@@ -143,7 +142,7 @@ import {
   });
 
   /* ---------- ヒートマップ ---------- */
-  function buildHeatmapUI(m, gridEl, nEl, insightEl, centerLabel, hint, noteEl) {
+  function buildHeatmapUI(m, gridEl, nEl, insightEl, centerLabel, noteEl) {
     gridEl.innerHTML = "";
     const n = matrixCount(m);
     let max = 0;
@@ -162,7 +161,7 @@ import {
         gridEl.appendChild(cell);
       }
     }
-    insightEl.innerHTML = heatmapInsightHTML(m, centerLabel, hint);
+    insightEl.innerHTML = heatmapInsightHTML(m, centerLabel);
     if (noteEl) noteEl.textContent = n && n < 10 ? `球数が少ないため参考程度(${n}球)。` : "";
   }
 
@@ -171,17 +170,17 @@ import {
 
   function renderShotHm() {
     const g = CLUB_GROUPS.find((x) => x.key === currentGroup);
-    let m, title, hint;
+    let m, title;
     if (g.key === "CLUB") {
       m = buildHeatMatrix(d.byClub[currentClub] || []);
-      title = currentClub || "-"; hint = "";
+      title = currentClub || "-";
     } else {
       const shots = d.shotShots.filter((s) => g.test(s.club));
       m = buildHeatMatrix(shots);
-      title = g.label; hint = g.hint;
+      title = g.label;
     }
     $("shotTitle").textContent = title;
-    buildHeatmapUI(m, $("shotGrid"), $("shotN"), $("shotInsight"), "ナイス", hint, $("shotNote"));
+    buildHeatmapUI(m, $("shotGrid"), $("shotN"), $("shotInsight"), "ナイス", $("shotNote"));
   }
 
   const segRow = $("segRow"), clubPick = $("clubPick");
@@ -214,6 +213,5 @@ import {
     clubPick.appendChild(b);
   });
   renderShotHm();
-  buildHeatmapUI(buildHeatMatrix(d.puttShots), $("puttGridHm"), $("puttN"), $("puttInsight"), "惜しい",
-    "距離感か打ち出し方向、偏っている側を練習テーマに。");
+  buildHeatmapUI(buildHeatMatrix(d.puttShots), $("puttGridHm"), $("puttN"), $("puttInsight"), "惜しい");
 })();

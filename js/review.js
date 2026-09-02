@@ -42,8 +42,7 @@ function formatDateJP(iso) {
         `<div class="loss-head"><span class="loss-rank">${i + 1}</span>`
         + `<span class="loss-name">${l.name}</span>`
         + `<span class="loss-val">-${l.loss}打</span></div>`
-        + `<div class="loss-bar-track"><div class="loss-bar" style="width:${l.loss / maxLoss * 100}%"></div></div>`
-        + `<div class="loss-rx">${l.rx}</div>`;
+        + `<div class="loss-bar-track"><div class="loss-bar" style="width:${l.loss / maxLoss * 100}%"></div></div>`;
       lossList.appendChild(div);
     });
   }
@@ -77,7 +76,7 @@ function formatDateJP(iso) {
   });
 
   /* ---- ヒートマップ ---- */
-  function buildHeatmapUI(m, gridEl, nEl, insightEl, centerLabel, hint, noteEl) {
+  function buildHeatmapUI(m, gridEl, nEl, insightEl, centerLabel, noteEl) {
     gridEl.innerHTML = "";
     const n = matrixCount(m);
     let max = 0;
@@ -96,7 +95,7 @@ function formatDateJP(iso) {
         gridEl.appendChild(cell);
       }
     }
-    insightEl.innerHTML = heatmapInsightHTML(m, centerLabel, hint);
+    insightEl.innerHTML = heatmapInsightHTML(m, centerLabel);
     if (noteEl) noteEl.textContent = n && n < 10 ? `球数が少ないため参考程度(${n}球)。累積画面で精度が上がります。` : "";
   }
 
@@ -105,16 +104,16 @@ function formatDateJP(iso) {
 
   function renderShotHm() {
     const g = CLUB_GROUPS.find((x) => x.key === currentGroup);
-    let shots, title, hint;
+    let shots, title;
     if (g.key === "CLUB") {
       shots = rv.shotHeatSource.filter((s) => s.club === currentClub);
-      title = currentClub || "-"; hint = "";
+      title = currentClub || "-";
     } else {
       shots = rv.shotHeatSource.filter((s) => g.test(s.club));
-      title = g.label; hint = g.hint;
+      title = g.label;
     }
     $("shotTitle").textContent = title;
-    buildHeatmapUI(buildHeatMatrix(shots), $("shotGrid"), $("shotN"), $("shotInsight"), "ナイス", hint, $("shotNote"));
+    buildHeatmapUI(buildHeatMatrix(shots), $("shotGrid"), $("shotN"), $("shotInsight"), "ナイス", $("shotNote"));
   }
 
   const segRow = $("segRow"), clubPick = $("clubPick");
@@ -147,8 +146,7 @@ function formatDateJP(iso) {
     clubPick.appendChild(b);
   });
   renderShotHm();
-  buildHeatmapUI(buildHeatMatrix(rv.puttHeatSource), $("puttGridHm"), $("puttN"), $("puttInsight"), "惜しい",
-    "距離感か打ち出し方向、偏っている側を練習テーマに。");
+  buildHeatmapUI(buildHeatMatrix(rv.puttHeatSource), $("puttGridHm"), $("puttN"), $("puttInsight"), "惜しい");
 
   /* ---- ホール別 ---- */
   activeHoles(round).forEach((h, i) => {

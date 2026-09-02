@@ -102,16 +102,14 @@ export function lossTop3(holes) {
     const dir = breakdownText(obShots, (s) => (s.result.indexOf("左") >= 0 ? "左" : s.result.indexOf("右") >= 0 ? "右" : "その他"));
     losses.push({
       name: `OB ${obShots.length}発(${dir})`,
-      loss: obShots.length * 2,
-      rx: "処方:方向のミスが失点源の可能性。練習場で曲がりの原因(フェース向き)を1テーマに。"
+      loss: obShots.length * 2
     });
   }
   if (missShots.length) {
     const lie = breakdownText(missShots, (s) => s.lie);
     losses.push({
       name: `素ダフリ・チョロ ${missShots.length}回(${lie})`,
-      loss: missShots.length,
-      rx: "処方:ライに対して欲張った番手選択の可能性。厳しいライでは1番手上げて短く握る、をルール化。"
+      loss: missShots.length
     });
   }
   if (threePuttHoles.length) {
@@ -122,8 +120,7 @@ export function lossTop3(holes) {
     const dist = breakdownText(threePuttHoles, firstDist);
     losses.push({
       name: `3パット ${threePuttHoles.length}回(${dist})`,
-      loss: threePuttHoles.length,
-      rx: "処方:ファーストパットの距離感が合っていない可能性。距離感の練習を実グリーンで。"
+      loss: threePuttHoles.length
     });
   }
   losses.sort((a, b) => b.loss - a.loss);
@@ -161,7 +158,7 @@ export function matrixCount(m) {
 export const RAMP = ["#eef5f1", "#d4e9de", "#aed7c2", "#83c1a2", "#54a87f", "#2b8f60", "#0f7b4d"];
 
 // §6.5 ヒートマップ読み解き文
-export function heatmapInsightHTML(m, centerLabel, hint) {
+export function heatmapInsightHTML(m, centerLabel) {
   const n = matrixCount(m);
   const nice = m[1][1];
   const missTotal = n - nice;
@@ -178,7 +175,7 @@ export function heatmapInsightHTML(m, centerLabel, hint) {
   const missShare = missTotal ? Math.round(best.v / missTotal * 100) : 0;
 
   if (missTotal && missShare >= 34) {
-    return `${centerLabel}率${niceShare}%。ミスは<b>${colName}・${rowName}</b>に集中(ミスの${missShare}%)。${hint || ""}`;
+    return `${centerLabel}率${niceShare}%。ミスは<b>${colName}・${rowName}</b>に集中(ミスの${missShare}%)。`;
   }
 
   const rowSum = [0, 0, 0], colSum = [0, 0, 0];
@@ -193,17 +190,17 @@ export function heatmapInsightHTML(m, centerLabel, hint) {
   const axShare = missTotal ? Math.round(axes[0].share / missTotal * 100) : 0;
 
   if (missTotal && axShare >= 50) {
-    return `${centerLabel}率${niceShare}%。ミスは<b>${axes[0].name}</b>に偏り(ミスの${axShare}%)。${hint || ""}`;
+    return `${centerLabel}率${niceShare}%。ミスは<b>${axes[0].name}</b>に偏り(ミスの${axShare}%)。`;
   }
   return `${centerLabel}率<b>${niceShare}%</b>。ミスの散り方に大きな偏りはありません。`;
 }
 
 export const CLUB_GROUPS = [
-  { key: "DR", label: "ドライバー", test: (c) => c === "1W", hint: "OBの方向と合わせて曲がり傾向をチェック。" },
-  { key: "WD", label: "ウッド・UT", test: (c) => ["3W", "5W", "7W", "UT"].includes(c), hint: "長物は無理せずアイアン刻みも選択肢に。" },
-  { key: "IR", label: "アイアン", test: (c) => /^[2-9]I$/.test(c), hint: "番手を1つ上げる or 振り遅れのチェックを。" },
-  { key: "WG", label: "ウェッジ", test: (c) => ["PW", "AW", "SW", "LW"].includes(c), hint: "100y以内の精度はスコア直結。距離の打ち分け練習を。" },
-  { key: "CLUB", label: "クラブ別", test: null, hint: "" }
+  { key: "DR", label: "ドライバー", test: (c) => c === "1W" },
+  { key: "WD", label: "ウッド・UT", test: (c) => ["3W", "5W", "7W", "UT"].includes(c) },
+  { key: "IR", label: "アイアン", test: (c) => /^[2-9]I$/.test(c) },
+  { key: "WG", label: "ウェッジ", test: (c) => ["PW", "AW", "SW", "LW"].includes(c) },
+  { key: "CLUB", label: "クラブ別", test: null }
 ];
 
 // ショットヒートマップ対象(§6.3: normal/nice/putt、ob/miss/inは除外)
