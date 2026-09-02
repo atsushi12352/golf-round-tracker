@@ -1,5 +1,6 @@
-import { getSettings, saveSettings } from "./db.js";
+import { getSettings, saveSettings, getCourses, getRounds, deleteCourse } from "./db.js";
 import { CLUB_MASTER } from "./clubs.js";
+import { PRESET_COURSES } from "./presetCourses.js";
 import { exportBackup, importBackupFile, getLastBackupAt, daysSinceLastBackup, STALE_DAYS } from "./backup.js";
 
 (async function () {
@@ -29,6 +30,60 @@ import { exportBackup, importBackupFile, getLastBackupAt, daysSinceLastBackup, S
     });
   }
   renderClubs();
+
+  /* ---- おまけ: 未参照コースの削除 ---- */
+  // プリセットコースは削除しても次回起動時のマイグレーションで復活するため、削除対象から除外する
+  const presetIds = new Set(PRESET_COURSES.map((p) => p.id));
+  const courseList = $("courseList");
+  let pendingDeleteCourse = null;
+  async function renderCourses() {
+    const [courses, rounds] = await Promise.all([getCourses(), getRounds()]);
+    const usedIds = new Set(rounds.map((r) => r.courseId));
+    if (courses.length === 0) {
+      courseList.innerHTML = '<div class="empty-state">登録されているコースがありません。</div>';
+      return;
+    }
+    courseList.innerHTML = "";
+    courses.forEach((c) => {
+      const count = rounds.filter((r) => r.courseId === c.id).length;
+      const inUse = usedIds.has(c.id);
+      const isPreset = presetIds.has(c.id);
+      const statusText = isPreset ? "プリセットコース(削除不可)" : count > 0 ? `${count}ラウンドで使用中` : "未使用";
+      const row = document.createElement("div");
+      row.className = "round-card course-row";
+      row.innerHTML = `
+        <div class="rc-main">
+          <div class="course">${c.name}</div>
+          <div class="status">${statusText}</div>
+        </div>`;
+      const delBtn = document.createElement("button");
+      delBtn.className = "rc-delete";
+      delBtn.type = "button";
+      delBtn.setAttribute("aria-label", "削除");
+      delBtn.textContent = "🗑";
+      delBtn.disabled = inUse || isPreset;
+      delBtn.addEventListener("click", () => {
+        if (inUse || isPreset) return;
+        pendingDeleteCourse = c;
+        $("courseDeleteConfirmText").textContent = `「${c.name}」を削除しますか?この操作は取り消せません。`;
+        $("courseDeleteConfirmOverlay").classList.add("show");
+      });
+      row.appendChild(delBtn);
+      courseList.appendChild(row);
+    });
+  }
+  await renderCourses();
+  $("courseDeleteConfirmNo").addEventListener("click", () => {
+    pendingDeleteCourse = null;
+    $("courseDeleteConfirmOverlay").classList.remove("show");
+  });
+  $("courseDeleteConfirmYes").addEventListener("click", async () => {
+    if (!pendingDeleteCourse) return;
+    await deleteCourse(pendingDeleteCourse.id);
+    pendingDeleteCourse = null;
+    $("courseDeleteConfirmOverlay").classList.remove("show");
+    await renderCourses();
+  });
 
   function renderBackupStatus() {
     const last = getLastBackupAt();

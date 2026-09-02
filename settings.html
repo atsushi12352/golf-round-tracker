@@ -23,6 +23,12 @@
       <div class="hm-note" style="margin-top:8px;">PTは常時使用します。変更しても過去のラウンド記録は変わりません。</div>
     </div>
 
+    <div class="card">
+      <h2>コース管理</h2>
+      <div class="round-list" id="courseList"></div>
+      <div class="hm-note" style="margin-top:8px;">ラウンドの記録が残っているコースは削除できません。</div>
+    </div>
+
     <div class="card backup-row">
       <h2>バックアップ</h2>
       <div class="backup-status" id="backupStatus">-</div>
@@ -32,6 +38,17 @@
       <div class="hm-note">Safariのストレージは端末の状況によって消去されることがあります。ラウンド後は定期的にエクスポートしてください。</div>
     </div>
   </main>
+</div>
+
+<div class="overlay" id="courseDeleteConfirmOverlay">
+  <div class="sheet">
+    <h2>コースを削除しますか?</h2>
+    <p class="sheet-text" id="courseDeleteConfirmText"></p>
+    <div class="sheet-btns">
+      <button class="sheet-btn danger" id="courseDeleteConfirmYes">削除する</button>
+      <button class="sheet-btn ghost" id="courseDeleteConfirmNo">戻る</button>
+    </div>
+  </div>
 </div>
 
 <div class="overlay" id="importConfirmOverlay">

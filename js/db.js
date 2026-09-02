@@ -111,6 +111,10 @@ export async function saveCourse(course) {
   return dbPut("courses", course);
 }
 
+export async function deleteCourse(id) {
+  return dbDelete("courses", id);
+}
+
 /* ---------- rounds ---------- */
 export async function getRounds() {
   const rounds = await dbGetAll("rounds");
