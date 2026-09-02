@@ -161,7 +161,7 @@ function formatDateJP(iso) {
     if (hs.bunker) notes.push("バンカー");
     if (hs.scramble) notes.push("寄せワン");
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="hole-no">${i + 1}</td>`
+    tr.innerHTML = `<td class="hole-no">${hs.number}</td>`
       + `<td><button class="par-tap" type="button" data-i="${i}">${hs.par}</button></td>`
       + `<td>${hs.score}</td>`
       + `<td class="${cls}">${d > 0 ? "+" + d : d === 0 ? "E" : d}</td>`

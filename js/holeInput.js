@@ -29,7 +29,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
 
   const $ = (id) => document.getElementById(id);
 
-  $("holeNum").textContent = holeNum;
+  $("holeNum").textContent = holeData.number;
   $("holePar").textContent = par;
 
   /* ---- club grid ---- */
@@ -245,7 +245,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     round.holes[holeNum - 1].par = par;
     await saveRound(round);
     if (course) {
-      course.pars[holeNum - 1] = par;
+      course.pars[holeData.number - 1] = par;
       await saveCourse(course);
     }
   });
@@ -256,7 +256,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     const diff = sc - pa;
     const name = diff === 0 ? "パー" : diff === -1 ? "バーディ" : diff === -2 ? "イーグル"
       : diff === 1 ? "ボギー" : diff === 2 ? "ダブルボギー" : "+" + diff;
-    $("sheetTitle").textContent = "ホール" + holeNum + " ホールアウト:" + name;
+    $("sheetTitle").textContent = "ホール" + holeData.number + " ホールアウト:" + name;
     $("statScore").textContent = sc;
     $("statPutts").textContent = putts();
     $("statPenalty").textContent = penalties();
@@ -283,7 +283,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
   }
 
   $("nextHole").addEventListener("click", async () => {
-    round.holes[holeNum - 1] = { number: holeNum, par, shots: shots.slice() };
+    round.holes[holeNum - 1] = { number: holeData.number, par, shots: shots.slice() };
     round.playedHoles = Math.max(playedHoleCount(round), holeNum);
     if (holeNum >= 18) {
       round.complete = true;
@@ -303,7 +303,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     const played = playedHoleCount(round);
     $("endConfirmText").textContent = played === 0
       ? "まだ1ホールも完了していません。終了すると保存されるデータはありません。"
-      : played + "ホールまで保存し、振り返り画面に進みます。現在入力中のホール" + holeNum + "の内容は破棄されます。";
+      : played + "ホールまで保存し、振り返り画面に進みます。現在入力中のホール" + holeData.number + "の内容は破棄されます。";
     $("endConfirmOverlay").classList.add("show");
   });
   $("endConfirmNo").addEventListener("click", () => $("endConfirmOverlay").classList.remove("show"));

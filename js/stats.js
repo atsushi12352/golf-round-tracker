@@ -17,6 +17,20 @@ export function inferPuttDist(shots) {
   return isFirst ? "ミドル" : "1m以内";
 }
 
+/* ---------- 3-2: IN/OUTスタート ---------- */
+// プレー順(1打目のホール〜18打目のホール)に対応する実ホール番号の配列
+// OUT: 1,2,...,18 / IN: 10,11,...,18,1,2,...,9
+export function playOrderNumbers(start) {
+  const numbers = [];
+  if (start === "IN") {
+    for (let n = 10; n <= 18; n++) numbers.push(n);
+    for (let n = 1; n <= 9; n++) numbers.push(n);
+  } else {
+    for (let n = 1; n <= 18; n++) numbers.push(n);
+  }
+  return numbers;
+}
+
 /* ---------- §6.1 ホール単位 ---------- */
 export function holeStats(hole) {
   const shots = hole.shots || [];
@@ -363,7 +377,8 @@ export function dashboardSummary(allRounds, courses) {
     const crounds = courseMap[c.id];
     const avgs = c.pars.map((par, i) => {
       const diffs = crounds.map((r) => {
-        const h = i < playedHoleCount(r) ? r.holes[i] : null;
+        // IN/OUTどちらのスタートでも実ホール番号で突き合わせる(プレー順の配列位置には依存しない)
+        const h = activeHoles(r).find((hh) => hh.number === i + 1);
         return h ? holeStats(h).score - h.par : null;
       }).filter((v) => v !== null);
       return diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;

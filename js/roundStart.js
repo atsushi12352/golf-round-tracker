@@ -1,5 +1,6 @@
 import { getCourses, getRounds, saveCourse, saveRound, newId } from "./db.js";
 import { TEES } from "./clubs.js";
+import { playOrderNumbers } from "./stats.js";
 
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -52,6 +53,21 @@ import { TEES } from "./clubs.js";
     if ($("teeCustom").value.trim()) { selectedTee = null; renderTeeSelection(); }
   });
 
+  let selectedStart = "OUT";
+  const startChips = $("startChips");
+  [["OUT", "OUTスタート(1番から)"], ["IN", "INスタート(10番から)"]].forEach(([key, label]) => {
+    const b = document.createElement("button");
+    b.className = "chip-toggle" + (key === selectedStart ? " selected" : "");
+    b.type = "button";
+    b.textContent = label;
+    b.dataset.start = key;
+    b.addEventListener("click", () => {
+      selectedStart = key;
+      Array.prototype.forEach.call(startChips.children, (x) => x.classList.toggle("selected", x.dataset.start === key));
+    });
+    startChips.appendChild(b);
+  });
+
   function todayISO() {
     const d = new Date();
     const tz = d.getTimezoneOffset() * 60000;
@@ -86,7 +102,8 @@ import { TEES } from "./clubs.js";
       date: todayISO(),
       courseId: course.id,
       tee,
-      holes: course.pars.map((p, i) => ({ number: i + 1, par: p, shots: [] })),
+      start: selectedStart,
+      holes: playOrderNumbers(selectedStart).map((n) => ({ number: n, par: course.pars[n - 1], shots: [] })),
       playedHoles: 0,
       complete: false
     };
