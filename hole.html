@@ -105,6 +105,7 @@
     <h2>メニュー</h2>
     <div class="sheet-btns">
       <button class="sheet-btn danger" id="endEarlyBtn">ここまでで終了して保存</button>
+      <button class="sheet-btn danger" id="discardBtn">保存せずにラウンドを中止</button>
       <button class="sheet-btn ghost" id="closeMenuBtn">閉じる</button>
     </div>
   </div>
@@ -117,6 +118,32 @@
     <div class="sheet-btns">
       <button class="sheet-btn danger" id="endConfirmYes">終了して保存</button>
       <button class="sheet-btn ghost" id="endConfirmNo">戻る</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="discardConfirmOverlay">
+  <div class="sheet">
+    <h2>ラウンドを中止しますか?</h2>
+    <p class="sheet-text">このラウンドの記録を保存せずに終了しますか?入力した内容は失われます。</p>
+    <div class="sheet-btns">
+      <button class="sheet-btn danger" id="discardConfirmYes">中止する</button>
+      <button class="sheet-btn ghost" id="discardConfirmNo">戻る</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="parEditOverlay">
+  <div class="sheet">
+    <h2 id="parEditTitle">ホールのパーを変更</h2>
+    <div class="chip-grid" id="parEditChips" style="justify-content:center; margin-bottom:16px;">
+      <button class="chip-toggle" type="button" data-par="3">Par3</button>
+      <button class="chip-toggle" type="button" data-par="4">Par4</button>
+      <button class="chip-toggle" type="button" data-par="5">Par5</button>
+    </div>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="parEditApply">変更する</button>
+      <button class="sheet-btn ghost" id="parEditCancel">やめる</button>
     </div>
   </div>
 </div>

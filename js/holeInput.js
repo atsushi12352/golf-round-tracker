@@ -238,9 +238,27 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     flashTimer = setTimeout(() => f.classList.remove("show"), 900);
   }
 
-  /* ---- par toggle(新規: コースのpar確定) ---- */
-  $("parBtn").addEventListener("click", async () => {
-    par = par === 3 ? 4 : par === 4 ? 5 : 3;
+  /* ---- par変更(5-1: モーダル確認方式。タップ即トグルは廃止) ---- */
+  let parEditSelected = par;
+  function renderParEditChips(current) {
+    parEditSelected = current;
+    Array.prototype.forEach.call(document.querySelectorAll("#parEditChips .chip-toggle"), (b) => {
+      b.classList.toggle("selected", +b.dataset.par === current);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#parEditChips .chip-toggle"), (b) => {
+    b.addEventListener("click", () => renderParEditChips(+b.dataset.par));
+  });
+  $("parBtn").addEventListener("click", () => {
+    $("parEditTitle").textContent = holeData.number + "番ホールのパーを変更";
+    renderParEditChips(par);
+    $("parEditOverlay").classList.add("show");
+  });
+  $("parEditCancel").addEventListener("click", () => $("parEditOverlay").classList.remove("show"));
+  $("parEditApply").addEventListener("click", async () => {
+    $("parEditOverlay").classList.remove("show");
+    if (parEditSelected === par) return;
+    par = parEditSelected;
     $("holePar").textContent = par;
     round.holes[holeNum - 1].par = par;
     await saveRound(round);
@@ -316,6 +334,17 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     round.complete = true;
     await saveRound(round);
     location.href = "review.html?round=" + roundId;
+  });
+
+  /* ---- 4-1: 保存せずにラウンドを中止 ---- */
+  $("discardBtn").addEventListener("click", () => {
+    $("menuOverlay").classList.remove("show");
+    $("discardConfirmOverlay").classList.add("show");
+  });
+  $("discardConfirmNo").addEventListener("click", () => $("discardConfirmOverlay").classList.remove("show"));
+  $("discardConfirmYes").addEventListener("click", async () => {
+    await deleteRound(roundId);
+    location.href = "index.html";
   });
 
   /* ---- init ---- */
