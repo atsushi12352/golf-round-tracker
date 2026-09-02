@@ -1,4 +1,4 @@
-import { getRound, getCourse, getSettings } from "./db.js";
+import { getRound, getCourse, getSettings, saveRound, saveCourse } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, CLUB_GROUPS, activeHoles
 } from "./stats.js";
@@ -161,10 +161,40 @@ function formatDateJP(iso) {
     if (hs.bunker) notes.push("バンカー");
     if (hs.scramble) notes.push("寄せワン");
     const tr = document.createElement("tr");
-    tr.innerHTML = `<td class="hole-no">${i + 1}</td><td>${hs.par}</td><td>${hs.score}</td>`
+    tr.innerHTML = `<td class="hole-no">${i + 1}</td>`
+      + `<td><button class="par-tap" type="button" data-i="${i}">${hs.par}</button></td>`
+      + `<td>${hs.score}</td>`
       + `<td class="${cls}">${d > 0 ? "+" + d : d === 0 ? "E" : d}</td>`
       + `<td class="${hs.three ? "putt3" : ""}">${hs.putts}</td>`
       + `<td class="note">${notes.join("・")}</td>`;
     $("holeRows").appendChild(tr);
+  });
+
+  /* ---- Par修正(2-2: 過去ラウンドのパー修正) ---- */
+  let pendingPar = null;
+  Array.prototype.forEach.call(document.querySelectorAll(".par-tap"), (btn) => {
+    btn.addEventListener("click", async () => {
+      const i = +btn.dataset.i;
+      const rawHole = round.holes[i];
+      const oldPar = rawHole.par;
+      const newPar = oldPar === 3 ? 4 : oldPar === 4 ? 5 : 3;
+      rawHole.par = newPar;
+      await saveRound(round);
+      pendingPar = { number: rawHole.number, newPar };
+      $("parConfirmText").textContent =
+        `${rawHole.number}番のParを${oldPar}→${newPar}に変更しました。`
+        + `コース「${course ? course.name : "不明"}」のPar情報(以後このコースを選んだ時の初期値)も更新しますか?`;
+      $("parConfirmOverlay").classList.add("show");
+    });
+  });
+  $("parConfirmYes").addEventListener("click", async () => {
+    if (course && pendingPar) {
+      course.pars[pendingPar.number - 1] = pendingPar.newPar;
+      await saveCourse(course);
+    }
+    location.reload();
+  });
+  $("parConfirmNo").addEventListener("click", () => {
+    location.reload();
   });
 })();

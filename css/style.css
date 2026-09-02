@@ -167,6 +167,12 @@ td.diff-under { color: var(--under); font-weight: 700; }
 td.diff-even { color: var(--green-dark); font-weight: 700; }
 td.note { font-size: 10px; color: var(--muted); }
 td.putt3 { color: var(--over); font-weight: 700; }
+.par-tap {
+  border: none; background: none; color: var(--ink); font: inherit;
+  font-variant-numeric: tabular-nums; padding: 2px 6px; border-radius: 6px;
+  text-decoration: underline dotted; text-underline-offset: 2px;
+}
+.par-tap:active { background: var(--bg); }
 
 .mock-note { text-align: center; font-size: 10px; color: var(--muted); padding: 14px 0 4px; }
 

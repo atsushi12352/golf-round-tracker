@@ -74,8 +74,20 @@
         <thead><tr><th>H</th><th>Par</th><th>スコア</th><th>±</th><th>パット</th><th>メモ</th></tr></thead>
         <tbody id="holeRows"></tbody>
       </table>
+      <div class="hm-note" style="margin-top:8px;">Parをタップすると3/4/5に修正できます(記録済みホール)。</div>
     </div>
   </main>
+</div>
+
+<div class="overlay" id="parConfirmOverlay">
+  <div class="sheet">
+    <h2>コース情報にも反映しますか?</h2>
+    <p class="sheet-text" id="parConfirmText"></p>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="parConfirmYes">コース情報にも反映</button>
+      <button class="sheet-btn ghost" id="parConfirmNo">このラウンドのみ</button>
+    </div>
+  </div>
 </div>
 
 <script type="module" src="js/review.js"></script>
