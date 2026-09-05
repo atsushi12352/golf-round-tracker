@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>入力画面(大ミス方向)モック</title>
+<style>
+  :root {
+    --green: #0f7b4d;
+    --green-dark: #0a5c39;
+    --green-pale: #e6f4ee;
+    --ink: #1c2b24;
+    --sub: #68766f;
+    --line: #dfe7e2;
+    --bg: #f4f7f5;
+    --danger: #b0421f;
+    --danger-pale: #fbeee8;
+    --danger-line: #edc7b8;
+    --warn: #b9770e;
+    --warn-pale: #fdf3e3;
+    --radius: 14px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg); color: var(--ink);
+    user-select: none; -webkit-user-select: none;
+  }
+  .app { max-width: 480px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+  header {
+    background: var(--green); color: #fff;
+    padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .hole-num { font-size: 22px; font-weight: 700; }
+  .hole-par { font-size: 14px; opacity: .85; margin-left: 8px; }
+  .stroke-now { text-align: right; }
+  .stroke-now .label { font-size: 11px; opacity: .8; }
+  .stroke-now .num { font-size: 22px; font-weight: 700; line-height: 1.1; }
+
+  .log-bar {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 12px; background: #fff; border-bottom: 1px solid var(--line); min-height: 46px;
+  }
+  .log-scroll { display: flex; gap: 6px; overflow-x: auto; flex: 1; }
+  .log-scroll::-webkit-scrollbar { display: none; }
+  .log-chip {
+    flex: 0 0 auto; font-size: 12px; padding: 5px 9px; border-radius: 999px;
+    background: var(--green-pale); color: var(--green-dark); white-space: nowrap; font-weight: 600;
+  }
+  .log-chip.bad { background: var(--danger-pale); color: var(--danger); }
+  .log-empty { font-size: 12px; color: var(--sub); }
+  .undo-btn {
+    flex: 0 0 auto; border: 1px solid var(--line); background: #fff; color: var(--sub);
+    font-size: 12px; padding: 6px 10px; border-radius: 8px; font-weight: 600;
+  }
+
+  main { flex: 1; padding: 10px 12px 4px; display: flex; flex-direction: column; gap: 8px; }
+  .guide { font-size: 13px; color: var(--sub); text-align: center; }
+  .guide b { color: var(--ink); }
+  .guide.bigmiss { color: var(--danger); font-weight: 600; }
+
+  .chip-row { display: grid; gap: 6px; }
+  .chip-row.lie { grid-template-columns: repeat(5, 1fr); }
+  .chip-row.dist { grid-template-columns: repeat(4, 1fr); }
+  .chip {
+    border: 1px solid var(--line); background: #fff; border-radius: 999px;
+    min-height: 38px; font-size: 13px; font-weight: 600; color: var(--sub);
+  }
+  .chip small { display: block; font-size: 9px; font-weight: 500; }
+  .chip.selected { background: var(--ink); border-color: var(--ink); color: #fff; }
+  .chip.selected.auto { background: var(--green-dark); border-color: var(--green-dark); }
+
+  .grid9 { display: grid; grid-template-columns: 1fr 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; gap: 6px; }
+  .cell {
+    background: #fff; border: 1px solid var(--line); border-radius: var(--radius);
+    min-height: 74px; font-size: 14px; font-weight: 600; color: var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .cell small { font-size: 10px; color: var(--sub); font-weight: 500; }
+  .cell.center { background: var(--green-pale); border-color: var(--green); color: var(--green-dark); }
+  .cell:active { background: var(--green-pale); border-color: var(--green); }
+
+  /* 大ミス方向モード */
+  .grid9.pick .cell { opacity: .28; pointer-events: none; }
+  .grid9.pick .cell.dir {
+    opacity: 1; pointer-events: auto;
+    background: var(--danger-pale); border-color: var(--danger-line); color: var(--danger);
+    font-size: 16px;
+  }
+  .grid9.pick .cell.dir:active { background: var(--danger); color: #fff; }
+
+  .special-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .sp-btn {
+    border: 1px solid var(--line); background: #fff; border-radius: 12px;
+    min-height: 54px; font-size: 13px; font-weight: 600; line-height: 1.25;
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+  }
+  .sp-btn.ob { color: var(--danger); border-color: var(--danger-line); }
+  .sp-btn.ob:active, .sp-btn.ob.armed { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .sp-btn.miss { color: var(--warn); border-color: #ead9b8; }
+  .sp-btn.miss:active, .sp-btn.miss.armed { background: var(--warn); border-color: var(--warn); color: #fff; }
+  .sp-btn.in { color: var(--green-dark); border-color: var(--green); background: var(--green-pale); }
+  .sp-btn.in:active { background: var(--green); color: #fff; }
+  .cancel-pick {
+    grid-column: 1 / -1; border: 1px solid var(--line); background: #fff; color: var(--sub);
+    border-radius: 12px; min-height: 44px; font-size: 13px; font-weight: 600;
+  }
+  .choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .sp-btn.choice { min-height: 66px; font-size: 15px; }
+  .sp-btn.choice small { font-size: 10px; margin-top: 3px; }
+
+  .cupin-btn {
+    background: var(--green); color: #fff; border: none; border-radius: var(--radius);
+    min-height: 72px; font-size: 18px; font-weight: 700; width: 100%;
+  }
+
+  .club-bar { background: #fff; border-top: 1px solid var(--line); padding: 8px 10px calc(10px + env(safe-area-inset-bottom)); }
+  .club-label { font-size: 11px; color: var(--sub); margin: 0 2px 6px; }
+  .club-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; }
+  .club-btn {
+    min-height: 44px; border-radius: 10px; padding: 0;
+    border: 1px solid var(--line); background: #fff; font-size: 14px; font-weight: 700; color: var(--ink);
+  }
+  .club-btn.selected { background: var(--green); border-color: var(--green); color: #fff; }
+  .club-btn.pt { border-style: dashed; }
+
+  .flash {
+    position: fixed; left: 50%; top: 38%; transform: translate(-50%, -50%);
+    background: rgba(20, 40, 30, .88); color: #fff; padding: 12px 22px; border-radius: 14px;
+    font-size: 16px; font-weight: 700; opacity: 0; pointer-events: none; transition: opacity .15s;
+    z-index: 50; text-align: center; line-height: 1.4;
+  }
+  .flash.show { opacity: 1; }
+  .flash small { display: block; font-size: 11px; font-weight: 500; opacity: .8; }
+  .mock-note { text-align: center; font-size: 10px; color: var(--sub); padding: 4px 0 8px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div><span class="hole-num">HOLE 1</span><span class="hole-par">Par 4</span></div>
+    <div class="stroke-now">
+      <div class="label">次のショット</div>
+      <div class="num"><span id="strokeNum">1</span>打目</div>
+    </div>
+  </header>
+
+  <div class="log-bar">
+    <div class="log-scroll" id="logScroll"><span class="log-empty">まだ記録はありません</span></div>
+    <button class="undo-btn" id="undoBtn">1打戻す</button>
+  </div>
+
+  <main>
+    <div class="guide" id="guide"><b>1W</b> の結果のマスをタップ</div>
+
+    <div class="chip-row lie" id="lieChips"></div>
+
+    <div id="shotMode">
+      <div class="grid9" id="grid9"></div>
+      <div class="special-row" id="specialRow" style="margin-top:8px;">
+        <button class="sp-btn ob" id="obBtn">OB</button>
+        <button class="sp-btn ob" id="penBtn">ペナ<small style="font-weight:500;">赤杭・池</small></button>
+        <button class="sp-btn miss" id="missBtn">トップ<br>チョロ</button>
+        <button class="sp-btn in" id="chipInBtn">チップ<br>イン</button>
+      </div>
+      <div class="special-row" id="cancelRow" style="margin-top:8px;display:none;">
+        <button class="cancel-pick" id="cancelPick">やめる</button>
+      </div>
+      <div id="choiceRow" style="margin-top:8px;display:none;">
+        <div class="choice-grid">
+          <button class="sp-btn ob choice" data-adv="0">打ち直し<small style="font-weight:500;">+1罰・元の位置から</small></button>
+          <button class="sp-btn ob choice" data-adv="1">前進<small style="font-weight:500;">+2罰・特設ティー等</small></button>
+        </div>
+        <button class="cancel-pick" id="cancelChoice" style="width:100%;margin-top:6px;">やめる</button>
+      </div>
+    </div>
+
+    <div id="puttMode" style="display:none;">
+      <div class="chip-row dist" id="distChips" style="margin-bottom:8px;"></div>
+      <div class="grid9" id="puttGrid"></div>
+      <button class="cupin-btn" id="cupInBtn" style="margin-top:10px;">カップイン</button>
+    </div>
+  </main>
+
+  <div class="club-bar">
+    <div class="club-label">クラブ</div>
+    <div class="club-grid" id="clubGrid"></div>
+  </div>
+  <div class="mock-note">モック版:大ミスの方向入力を確認するためのものです</div>
+</div>
+
+<div class="flash" id="flash"></div>
+
+<script>
+(function () {
+  var CLUBS = ["1W","3W","5W","UT","5I","6I","7I","8I","9I","PW","AW","SW","PT"];
+  var LIES = ["ティー","FW","ラフ","バンカー","林"];
+  var DISTS = [["ロング","10m〜"],["ミドル","3〜10m"],["ショート","1〜3m"],["1m以内","タップイン"]];
+  var GRID = [
+    ["左オーバー","オーバー","右オーバー"],
+    ["左","ナイス","右"],
+    ["左ショート","ショート","右ショート"]
+  ];
+  var PGRID = [
+    ["左オーバー","オーバー","右オーバー"],
+    ["左に外し","惜しい","右に外し"],
+    ["左ショート","ショート","右ショート"]
+  ];
+  // 大ミス方向モードで有効にするマス [row, col] → 方向
+  var DIRS = { "0,1": "奥", "1,0": "左", "1,2": "右", "2,1": "手前" };
+
+  var shots = [], club = "1W", lie = "ティー", dist = "ミドル";
+  var pickMode = null;  // "OB" | "ペナ" | null
+  var pickedDir = null; // 方向選択後、処置待ちの状態
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* clubs */
+  var clubGrid = $("clubGrid");
+  CLUBS.forEach(function (c) {
+    var b = document.createElement("button");
+    b.className = "club-btn" + (c === "PT" ? " pt" : "");
+    b.textContent = c; b.dataset.club = c;
+    b.addEventListener("click", function () { selectClub(c); });
+    clubGrid.appendChild(b);
+  });
+  function selectClub(c) {
+    club = c;
+    cancelPick();
+    Array.prototype.forEach.call(clubGrid.children, function (b) {
+      b.classList.toggle("selected", b.dataset.club === c);
+    });
+    var isPutt = c === "PT";
+    $("shotMode").style.display = isPutt ? "none" : "";
+    $("puttMode").style.display = isPutt ? "" : "none";
+    $("lieChips").style.display = isPutt ? "none" : "";
+    if (isPutt) autoDist();
+    $("guide").innerHTML = isPutt
+      ? "<b>パット</b>の結果をタップ"
+      : "<b>" + c + "</b> の結果のマスをタップ";
+  }
+
+  /* lie chips(ラベルなし) */
+  var lieChips = $("lieChips");
+  LIES.forEach(function (l) {
+    var b = document.createElement("button");
+    b.className = "chip"; b.textContent = l; b.dataset.lie = l;
+    b.addEventListener("click", function () { setLie(l, false); });
+    lieChips.appendChild(b);
+  });
+  function setLie(l, auto) {
+    lie = l;
+    Array.prototype.forEach.call(lieChips.children, function (b) {
+      b.classList.toggle("selected", b.dataset.lie === l);
+      b.classList.toggle("auto", auto && b.dataset.lie === l);
+    });
+  }
+  function inferLie() {
+    if (!shots.length) return "ティー";
+    var last = shots[shots.length - 1];
+    if (last.kind === "pen") return "ラフ";
+    if (last.kind === "ob") return last.adv ? "FW" : last.lie;  // 前進なら特設ティー(FW扱い)
+    if (last.kind === "miss") return last.lie;
+    if (last.result.indexOf("左") >= 0 || last.result.indexOf("右") >= 0) return "ラフ";
+    return "FW";
+  }
+
+  /* dist chips(ラベルなし) */
+  var distChips = $("distChips");
+  DISTS.forEach(function (d) {
+    var b = document.createElement("button");
+    b.className = "chip";
+    b.innerHTML = d[0] + "<small>" + d[1] + "</small>";
+    b.dataset.dist = d[0];
+    b.addEventListener("click", function () { setDist(d[0]); });
+    distChips.appendChild(b);
+  });
+  function setDist(d) {
+    dist = d;
+    Array.prototype.forEach.call(distChips.children, function (b) {
+      b.classList.toggle("selected", b.dataset.dist === d);
+    });
+  }
+  function autoDist() {
+    setDist(shots.filter(function (s) { return s.club === "PT"; }).length === 0 ? "ミドル" : "1m以内");
+  }
+
+  /* 9 grid */
+  var grid9 = $("grid9");
+  GRID.forEach(function (row, ri) {
+    row.forEach(function (label, ci) {
+      var b = document.createElement("button");
+      b.className = "cell" + (ri === 1 && ci === 1 ? " center" : "");
+      b.dataset.rc = ri + "," + ci;
+      b.innerHTML = (ri === 1 && ci === 1) ? "ナイス<small>狙い通り</small>" : label;
+      b.addEventListener("click", function () {
+        if (pickMode) {
+          var dir = DIRS[b.dataset.rc];
+          if (!dir) return;
+          // OBかつティーショットのときだけ、打ち直し/前進の2択を挟む
+          if (pickMode === "OB" && lie === "ティー") {
+            pickedDir = dir;
+            $("cancelRow").style.display = "none";
+            $("choiceRow").style.display = "";
+            $("guide").innerHTML = "OB" + dir + " — 処置は?";
+            return;
+          }
+          record({ club: club, lie: lie, result: pickMode + dir, kind: pickMode === "OB" ? "ob" : "pen", dir: dir, adv: false });
+          cancelPick();
+        } else {
+          record({ club: club, lie: lie, result: label, kind: (ri === 1 && ci === 1) ? "nice" : "normal" });
+        }
+      });
+      grid9.appendChild(b);
+    });
+  });
+
+  /* putt grid */
+  var puttGrid = $("puttGrid");
+  PGRID.forEach(function (row, ri) {
+    row.forEach(function (label, ci) {
+      var b = document.createElement("button");
+      b.className = "cell" + (ri === 1 && ci === 1 ? " center" : "");
+      b.innerHTML = (ri === 1 && ci === 1) ? "惜しい<small>距離◎ 真っ直ぐ</small>" : label;
+      b.addEventListener("click", function () {
+        record({ club: "PT", lie: "グリーン", result: label, kind: "putt", dist: dist });
+      });
+      puttGrid.appendChild(b);
+    });
+  });
+  $("cupInBtn").addEventListener("click", function () {
+    record({ club: "PT", lie: "グリーン", result: "カップイン", kind: "in", dist: dist });
+    flash("ホールアウト", "モックではここで終わりです");
+  });
+
+  /* 大ミス:方向選択モード */
+  function startPick(mode, btn) {
+    pickMode = mode;
+    grid9.classList.add("pick");
+    Array.prototype.forEach.call(grid9.children, function (b) {
+      var dir = DIRS[b.dataset.rc];
+      b.classList.toggle("dir", !!dir);
+      if (dir) b.innerHTML = dir;
+    });
+    $("specialRow").style.display = "none";
+    $("cancelRow").style.display = "";
+    $("guide").innerHTML = mode + "はどっちに?";
+    $("guide").className = "guide bigmiss";
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".sp-btn.choice"), function (b) {
+    b.addEventListener("click", function () {
+      var adv = b.dataset.adv === "1";
+      record({ club: club, lie: lie, result: "OB" + pickedDir, kind: "ob", dir: pickedDir, adv: adv });
+      cancelPick();
+    });
+  });
+  $("cancelChoice").addEventListener("click", cancelPick);
+
+  function cancelPick() {
+    if (!pickMode) return;
+    pickMode = null;
+    pickedDir = null;
+    $("choiceRow").style.display = "none";
+    grid9.classList.remove("pick");
+    Array.prototype.forEach.call(grid9.children, function (b, i) {
+      var ri = Math.floor(i / 3), ci = i % 3;
+      b.classList.remove("dir");
+      b.innerHTML = (ri === 1 && ci === 1) ? "ナイス<small>狙い通り</small>" : GRID[ri][ci];
+    });
+    $("specialRow").style.display = "";
+    $("cancelRow").style.display = "none";
+    $("guide").className = "guide";
+    $("guide").innerHTML = "<b>" + club + "</b> の結果のマスをタップ";
+  }
+  $("obBtn").addEventListener("click", function () { startPick("OB"); });
+  $("penBtn").addEventListener("click", function () { startPick("ペナ"); });
+  $("cancelPick").addEventListener("click", cancelPick);
+  $("missBtn").addEventListener("click", function () {
+    record({ club: club, lie: lie, result: "トップ・チョロ", kind: "miss" });
+  });
+  $("chipInBtn").addEventListener("click", function () {
+    record({ club: club, lie: lie, result: "チップイン", kind: "in" });
+    flash("ホールアウト", "モックではここで終わりです");
+  });
+
+  /* record */
+  function record(s) {
+    shots.push(s);
+    setLie(inferLie(), true);
+    if (club === "PT") autoDist();
+    render();
+    flash(s.club + " " + s.result, s.kind === "ob" ? (s.adv ? "前進 +2打罰" : "打ち直し +1打罰") : s.kind === "pen" ? "+1打罰" : "");
+    if (navigator.vibrate) navigator.vibrate(10);
+  }
+  $("undoBtn").addEventListener("click", function () {
+    cancelPick();
+    if (!shots.length) return;
+    var s = shots.pop();
+    setLie(inferLie(), true);
+    if (club === "PT") autoDist();
+    render();
+    flash("取り消し", s.club + " " + s.result);
+  });
+
+  function render() {
+    // 罰打:OBは打ち直し=1・前進=2、赤杭ペナは1
+    var pen = shots.reduce(function (a, s) {
+      if (s.kind === "ob") return a + (s.adv ? 2 : 1);
+      if (s.kind === "pen") return a + 1;
+      return a;
+    }, 0);
+    $("strokeNum").textContent = shots.length + pen + 1;
+    var log = $("logScroll");
+    log.innerHTML = "";
+    if (!shots.length) { log.innerHTML = '<span class="log-empty">まだ記録はありません</span>'; return; }
+    shots.forEach(function (s, i) {
+      var c = document.createElement("span");
+      c.className = "log-chip" + (s.kind === "ob" || s.kind === "pen" || s.kind === "miss" ? " bad" : "");
+      c.textContent = (i + 1) + " " + s.club + " " + s.result + (s.kind === "ob" ? (s.adv ? "(前進)" : "(打直)") : "");
+      log.appendChild(c);
+    });
+    log.scrollLeft = log.scrollWidth;
+  }
+
+  var t;
+  function flash(main, sub) {
+    var f = $("flash");
+    f.innerHTML = main + (sub ? "<small>" + sub + "</small>" : "");
+    f.classList.add("show");
+    clearTimeout(t);
+    t = setTimeout(function () { f.classList.remove("show"); }, 900);
+  }
+
+  selectClub("1W");
+  setLie("ティー", true);
+  setDist("ミドル");
+  render();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,351 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>12マスヒートマップ モック</title>
+<style>
+  :root {
+    --green: #0f7b4d;
+    --green-dark: #0a5c39;
+    --ink: #0b0b0b;
+    --sub: #52514e;
+    --muted: #898781;
+    --line: #e1e0d9;
+    --bg: #f4f7f5;
+    --card: #fcfcfb;
+    --danger: #b0421f;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg); color: var(--ink);
+    padding-bottom: calc(24px + env(safe-area-inset-bottom));
+  }
+  .app { max-width: 480px; margin: 0 auto; }
+  header {
+    background: var(--green); color: #fff;
+    padding: calc(14px + env(safe-area-inset-top)) 18px 16px;
+  }
+  .h-sub { font-size: 12px; opacity: .85; }
+  .h-title { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  main { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px;
+  }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 700; margin-bottom: 10px; }
+
+  .seg-row { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .seg-btn {
+    border: 1px solid var(--line); background: var(--card); color: var(--sub);
+    border-radius: 999px; font-size: 12px; font-weight: 600; padding: 7px 12px;
+  }
+  .seg-btn.selected { background: var(--green); border-color: var(--green); color: #fff; }
+  .club-pick { display: none; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; }
+  .club-pick.show { display: flex; }
+  .club-pick .seg-btn { padding: 6px 10px; }
+
+  .hm-title { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+  .hm-title small { font-weight: 500; color: var(--muted); margin-left: 6px; font-size: 11px; }
+
+  /* ---- 12-cell layout ---- */
+  .grid12 {
+    display: grid;
+    grid-template-columns: 48px 1fr 1fr 1fr 48px;
+    grid-template-rows: 44px 1fr 1fr 1fr 44px;
+    gap: 5px;
+  }
+  .cell {
+    border-radius: 10px; min-height: 60px;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px;
+    text-align: center;
+  }
+  .cell .pct { font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .cell .cnt { font-size: 10px; opacity: .78; }
+  .cell .lbl { font-size: 9px; opacity: .8; margin-bottom: 1px; }
+  .cell.empty .cnt { opacity: .45; }
+
+  .ob-left  { grid-column: 1; grid-row: 1 / span 5; }
+  .ob-right { grid-column: 5; grid-row: 1 / span 5; }
+  .ob-cell .lbl { font-size: 10px; font-weight: 700; opacity: .9; margin-bottom: 2px; }
+  .ob-cell .pct { font-size: 14px; }
+  .top-cell { grid-column: 2 / span 3; grid-row: 1; flex-direction: row; gap: 8px; min-height: 44px; }
+  .bottom-cell { grid-column: 2 / span 3; grid-row: 5; flex-direction: row; gap: 8px; min-height: 44px; }
+  .top-cell .lbl, .bottom-cell .lbl { font-size: 11px; margin: 0; font-weight: 600; }
+
+
+  .legend { display: flex; gap: 14px; margin-top: 10px; font-size: 10px; color: var(--muted); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 26px; height: 9px; border-radius: 3px; vertical-align: -1px; margin-right: 4px; }
+
+  .hm-insight {
+    margin-top: 10px; font-size: 12px; color: var(--sub); line-height: 1.55;
+    background: var(--bg); border-radius: 8px; padding: 9px 10px;
+  }
+  .hm-insight b { color: var(--green-dark); }
+  .hm-insight b.bad { color: var(--danger); }
+
+  .compare {
+    margin-top: 10px; font-size: 11px; color: var(--muted); line-height: 1.6;
+    border-top: 1px dashed var(--line); padding-top: 9px;
+  }
+  .compare b { color: var(--ink); }
+
+  .note { font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .note b { color: var(--ink); }
+  .mock-note { text-align: center; font-size: 10px; color: var(--muted); padding: 8px 0 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="h-sub">レイアウト確認用モック</div>
+    <div class="h-title">ミス傾向ヒートマップ(13マス案)</div>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>累積ミス傾向ヒートマップ</h2>
+      <div class="seg-row" id="segRow"></div>
+      <div class="club-pick" id="clubPick"></div>
+
+      <div class="hm-title"><span id="shotTitle">アイアン</span><small id="shotN"></small></div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:5px;">外周4マス=OB・ペナルティ・トップ/チョロを、失った方向で分類</div>
+      <div class="grid12" id="grid12"></div>
+
+      <div class="legend">
+        <span><i style="background:linear-gradient(90deg,#eef5f1,#0f7b4d)"></i>方向・距離のばらつき(濃いほど多い)</span>
+        <span><i style="background:linear-gradient(90deg,#fbeee8,#b0421f)"></i>大ミス(濃いほど多い)</span>
+      </div>
+
+      <div class="hm-insight" id="insight"></div>
+      <div class="compare" id="compare"></div>
+    </div>
+
+    <div class="card">
+      <h2>この案のポイント</h2>
+      <div class="note">
+        9マスの軸をそのまま外側に延長した配置です。左右の外側=大きく曲げて失った球、
+        上=奥に外して失った球、下=距離が全く足りなかった球。13マスの合計が100%になるので、
+        ナイス率が「大ミスも母数に入れた正直な数字」になります。<br><br>
+        グリーン奥のOB・ペナルティも起きるので、上段にも「奥へ大ミス」を足して<b>13マス</b>にしました。
+        外周4マスが「ボールを失った方向」の4方向、内側9マスが「セーフだった球のばらつき」という
+        二層構造になります。<br><br>
+        これに合わせて入力側は、OB・ペナルティを押したあとに<b>左/右/奥/手前</b>を選ぶ形を想定
+        (ボタンを増やさず、大ミスのときだけ1タップ追加)。
+      </div>
+    </div>
+  </main>
+  <div class="mock-note">モック版:表示はダミーデータ</div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  /* ---- ダミーデータ:クラブごとの 9マス + 大ミス ---- */
+  function m(rows, left, right, back, front) {
+    return { grid: rows, left: left, right: right, back: back, front: front };
+  }
+  // grid: [[左オーバー,オーバー,右オーバー],[左,ナイス,右],[左ショート,ショート,右ショート]]
+  // m(9マス, 大きく左, 大きく右, 奥へ大ミス, 手前へ大ミス(トップチョロ含む))
+  var DATA = {
+    "1W": m([[3,2,4],[14,40,17],[1,2,3]], 13, 9, 0, 5),
+    "3W": m([[1,1,1],[5,12,6],[1,1,2]], 3, 2, 0, 2),
+    "5W": m([[0,1,0],[3,7,3],[0,1,1]], 1, 1, 0, 1),
+    "UT": m([[1,1,1],[4,15,5],[1,2,3]], 3, 2, 0, 3),
+    "5I": m([[0,1,1],[2,8,3],[2,3,5]], 0, 1, 1, 3),
+    "6I": m([[1,0,1],[2,11,4],[1,3,6]], 0, 1, 0, 2),
+    "7I": m([[1,1,2],[3,17,5],[2,4,8]], 0, 1, 1, 3),
+    "8I": m([[1,1,1],[3,19,6],[2,4,9]], 0, 0, 2, 2),
+    "9I": m([[1,1,1],[2,18,4],[1,3,7]], 0, 0, 1, 1),
+    "PW": m([[1,2,1],[2,15,3],[1,4,5]], 0, 0, 1, 2),
+    "AW": m([[2,3,2],[4,28,5],[2,6,8]], 0, 0, 2, 5),
+    "SW": m([[2,4,2],[3,21,4],[3,7,9]], 0, 0, 1, 6)
+  };
+
+  var GROUPS = [
+    { key: "DR", label: "ドライバー", clubs: ["1W"] },
+    { key: "WD", label: "ウッド・UT", clubs: ["3W", "5W", "UT"] },
+    { key: "IR", label: "アイアン", clubs: ["5I", "6I", "7I", "8I", "9I"] },
+    { key: "WG", label: "ウェッジ", clubs: ["PW", "AW", "SW"] },
+    { key: "CLUB", label: "クラブ別", clubs: null }
+  ];
+  var CLUB_ORDER = Object.keys(DATA);
+  var currentGroup = "IR", currentClub = "7I";
+
+  function sum(clubs) {
+    var g = [[0,0,0],[0,0,0],[0,0,0]], left = 0, right = 0, back = 0, front = 0;
+    clubs.forEach(function (c) {
+      var d = DATA[c];
+      for (var r = 0; r < 3; r++) for (var k = 0; k < 3; k++) g[r][k] += d.grid[r][k];
+      left += d.left; right += d.right; back += d.back; front += d.front;
+    });
+    return { grid: g, left: left, right: right, back: back, front: front };
+  }
+
+  var GREEN = ["#eef5f1", "#d4e9de", "#aed7c2", "#83c1a2", "#54a87f", "#2b8f60", "#0f7b4d"];
+  var RED   = ["#fbeee8", "#f6dbcf", "#efc3ae", "#e5a184", "#d67f5c", "#c5623a", "#b0421f"];
+
+  function render() {
+    var g = GROUPS.filter(function (x) { return x.key === currentGroup; })[0];
+    var clubs = g.clubs || [currentClub];
+    var d = sum(clubs);
+    $("shotTitle").textContent = g.clubs ? g.label : currentClub;
+
+    var gridTotal = 0;
+    d.grid.forEach(function (r) { r.forEach(function (v) { gridTotal += v; }); });
+    var bigMiss = d.left + d.right + d.back + d.front;
+    var total = gridTotal + bigMiss;
+    $("shotN").textContent = "全" + total + "球(うち大ミス" + bigMiss + "球)";
+
+    var gridMax = 0;
+    d.grid.forEach(function (r) { r.forEach(function (v) { if (v > gridMax) gridMax = v; }); });
+    var missMax = Math.max(d.left, d.right, d.back, d.front);
+
+    var el = $("grid12");
+    el.innerHTML = "";
+
+    function pct(v) { return total ? Math.round(v / total * 100) : 0; }
+    function cellHTML(v, label, vertical) {
+      if (!v) return '<span class="lbl">' + label + '</span><span class="cnt">-</span>';
+      return (label ? '<span class="lbl">' + label + '</span>' : "")
+        + '<span class="pct">' + pct(v) + '%</span><span class="cnt">' + v + '球</span>';
+    }
+
+    function paintMiss(node, v) {
+      var step = missMax ? Math.round(v / missMax * 6) : 0;
+      node.style.background = RED[step];
+      node.style.color = step >= 4 ? "#fff" : "var(--ink)";
+    }
+    function barHTML(v, label) {
+      return v
+        ? '<span class="lbl">' + label + '</span><span class="pct">' + pct(v) + '%</span><span class="cnt">' + v + '球</span>'
+        : '<span class="lbl">' + label + '</span><span class="cnt">-</span>';
+    }
+
+    // 左端(縦ぶち抜き)
+    var obl = document.createElement("div");
+    obl.className = "cell ob-cell ob-left" + (d.left ? "" : " empty");
+    paintMiss(obl, d.left);
+    obl.innerHTML = cellHTML(d.left, "左へ<br>大ミス");
+    el.appendChild(obl);
+
+    // 上段:奥への大ミス
+    var top = document.createElement("div");
+    top.className = "cell top-cell" + (d.back ? "" : " empty");
+    paintMiss(top, d.back);
+    top.innerHTML = barHTML(d.back, "奥へ大ミス");
+    el.appendChild(top);
+
+    // 9マス
+    var LABELS = [
+      ["左オーバー", "オーバー", "右オーバー"],
+      ["左", "ナイス", "右"],
+      ["左ショート", "ショート", "右ショート"]
+    ];
+    for (var r = 0; r < 3; r++) {
+      for (var c = 0; c < 3; c++) {
+        var v = d.grid[r][c];
+        var cell = document.createElement("div");
+        cell.className = "cell" + (v ? "" : " empty");
+        cell.style.gridColumn = (c + 2);
+        cell.style.gridRow = (r + 2);
+        var step = gridMax ? Math.round(v / gridMax * 6) : 0;
+        cell.style.background = GREEN[step];
+        cell.style.color = step >= 4 ? "#fff" : "var(--ink)";
+        cell.innerHTML = v
+          ? '<span class="pct">' + pct(v) + '%</span><span class="cnt">' + v + '球</span>'
+          : '<span class="cnt">-</span>';
+        el.appendChild(cell);
+      }
+    }
+
+    // 右端(縦ぶち抜き)
+    var obr = document.createElement("div");
+    obr.className = "cell ob-cell ob-right" + (d.right ? "" : " empty");
+    paintMiss(obr, d.right);
+    obr.innerHTML = cellHTML(d.right, "右へ<br>大ミス");
+    el.appendChild(obr);
+
+    // 下段:手前への大ミス(トップ・チョロ + ペナ手前)
+    var bottom = document.createElement("div");
+    bottom.className = "cell bottom-cell" + (d.front ? "" : " empty");
+    paintMiss(bottom, d.front);
+    bottom.innerHTML = barHTML(d.front, "手前へ大ミス");
+    el.appendChild(bottom);
+
+    /* ---- 読み解き文 ---- */
+    var nice = d.grid[1][1];
+    var niceShare = total ? Math.round(nice / total * 100) : 0;
+    var missTotal = total - nice;
+    var best = { v: -1, name: "" };
+    var cells = [];
+    for (var rr = 0; rr < 3; rr++) for (var cc = 0; cc < 3; cc++) {
+      if (rr === 1 && cc === 1) continue;
+      cells.push({ v: d.grid[rr][cc], name: LABELS[rr][cc] });
+    }
+    cells.push({ v: d.left, name: "左への大ミス", big: true });
+    cells.push({ v: d.right, name: "右への大ミス", big: true });
+    cells.push({ v: d.back, name: "奥への大ミス", big: true });
+    cells.push({ v: d.front, name: "手前への大ミス", big: true });
+    cells.forEach(function (x) { if (x.v > best.v) best = x; });
+    var bigShare = total ? Math.round(bigMiss / total * 100) : 0;
+    var txt = "ナイス率<b>" + niceShare + "%</b>。ミスで最も多いのは<b" + (best.big ? ' class="bad"' : "") + ">"
+      + best.name + "</b>(ミスの" + (missTotal ? Math.round(best.v / missTotal * 100) : 0) + "%)。";
+    if (bigMiss) {
+      var parts = [];
+      if (d.left) parts.push("左" + d.left);
+      if (d.right) parts.push("右" + d.right);
+      if (d.back) parts.push("奥" + d.back);
+      if (d.front) parts.push("手前" + d.front);
+      txt += "大ミスは<b class=\"bad\">" + bigShare + "%</b>(" + parts.join("・") + ")。";
+    }
+    $("insight").innerHTML = txt;
+
+    var oldNice = gridTotal ? Math.round(nice / gridTotal * 100) : 0;
+    $("compare").innerHTML = "参考:大ミスを除外していた従来の9マス表示だと、このクラブのナイス率は<b>"
+      + oldNice + "%</b>と表示されていました(12マスでは<b>" + niceShare + "%</b>)。";
+  }
+
+  /* ---- タブ ---- */
+  var segRow = $("segRow"), clubPick = $("clubPick");
+  GROUPS.forEach(function (g) {
+    var b = document.createElement("button");
+    b.className = "seg-btn" + (g.key === currentGroup ? " selected" : "");
+    b.textContent = g.label;
+    b.dataset.key = g.key;
+    b.addEventListener("click", function () {
+      currentGroup = g.key;
+      Array.prototype.forEach.call(segRow.children, function (x) {
+        x.classList.toggle("selected", x.dataset.key === g.key);
+      });
+      clubPick.classList.toggle("show", g.key === "CLUB");
+      if (g.key === "CLUB") {
+        Array.prototype.forEach.call(clubPick.children, function (x) {
+          x.classList.toggle("selected", x.dataset.club === currentClub);
+        });
+      }
+      render();
+    });
+    segRow.appendChild(b);
+  });
+  CLUB_ORDER.forEach(function (c) {
+    var b = document.createElement("button");
+    b.className = "seg-btn";
+    b.textContent = c;
+    b.dataset.club = c;
+    b.addEventListener("click", function () {
+      currentClub = c;
+      Array.prototype.forEach.call(clubPick.children, function (x) {
+        x.classList.toggle("selected", x.dataset.club === c);
+      });
+      render();
+    });
+    clubPick.appendChild(b);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
