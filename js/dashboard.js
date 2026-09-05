@@ -1,25 +1,63 @@
 import { getRounds, getCourses, getSettings } from "./db.js";
+import { TEES } from "./clubs.js";
 import {
   dashboardSummary, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS,
   build13Heat, heat13Total, heatmap13InsightHTML
 } from "./stats.js";
 
+// バッチ8: 絞り込み状態の保存(次回開いたときも維持する)
+const FILTER_KEY = "golf-log:dashboard-filter";
+function loadFilter() {
+  try {
+    const raw = localStorage.getItem(FILTER_KEY);
+    if (!raw) return { courseId: "all", tee: "all", roundFilter: "18" };
+    const v = JSON.parse(raw) || {};
+    return {
+      courseId: v.courseId || "all",
+      tee: v.tee || "all",
+      roundFilter: v.roundFilter === "all" ? "all" : "18"
+    };
+  } catch (e) {
+    return { courseId: "all", tee: "all", roundFilter: "18" };
+  }
+}
+function saveFilter(f) {
+  try { localStorage.setItem(FILTER_KEY, JSON.stringify(f)); } catch (e) { /* ストレージ不可時は無視 */ }
+}
+
 (async function () {
   const $ = (id) => document.getElementById(id);
   const [rounds, courses, settings] = await Promise.all([getRounds(), getCourses(), getSettings()]);
-  const d = dashboardSummary(rounds, courses);
+  const completeRounds = rounds.filter((r) => r.complete);
 
-  if (d.perRound.length === 0) {
+  if (completeRounds.length === 0) {
+    $("filterBar").style.display = "none";
+    $("emptyCardText").textContent = "完了したラウンドがまだありません。ラウンドを保存すると、ここに推移や傾向が表示されます。";
     $("emptyCard").style.display = "";
     $("dashboardBody").style.display = "none";
     return;
   }
 
-  const firstDate = d.perRound[0].date, lastDate = d.perRound[d.perRound.length - 1].date;
-  $("headerSub").textContent = `${firstDate}〜${lastDate} 全${d.perRound.length}ラウンド`;
-  $("avgRecent").textContent = d.avgRecent3 !== null ? d.avgRecent3.toFixed(1) : "-";
-  $("best").textContent = d.best !== null ? d.best : "-";
-  $("avgAll").textContent = d.avgAll !== null ? d.avgAll.toFixed(1) : "-";
+  /* ---------- 絞り込み行のセットアップ(記録に存在するものだけ選択肢に出す) ---------- */
+  const filter = loadFilter();
+  const courseIdsWithRounds = new Set(completeRounds.map((r) => r.courseId));
+  const courseOptions = courses.filter((c) => courseIdsWithRounds.has(c.id));
+  const teeOptions = TEES.filter((t) => completeRounds.some((r) => r.tee === t));
+  if (!courseOptions.some((c) => c.id === filter.courseId)) filter.courseId = "all";
+  if (!teeOptions.includes(filter.tee)) filter.tee = "all";
+
+  const courseSel = $("filterCourse"), teeSel = $("filterTee"), roundSel = $("filterRound");
+  courseSel.innerHTML = '<option value="all">すべて</option>'
+    + courseOptions.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  teeSel.innerHTML = '<option value="all">すべて</option>'
+    + teeOptions.map((t) => `<option value="${t}">${t}</option>`).join("");
+  courseSel.value = filter.courseId;
+  teeSel.value = filter.tee;
+  roundSel.value = filter.roundFilter;
+
+  courseSel.addEventListener("change", () => { filter.courseId = courseSel.value; saveFilter(filter); renderAll(); });
+  teeSel.addEventListener("change", () => { filter.tee = teeSel.value; saveFilter(filter); renderAll(); });
+  roundSel.addEventListener("change", () => { filter.roundFilter = roundSel.value; saveFilter(filter); renderAll(); });
 
   /* ---------- 折れ線チャート ---------- */
   function lineChart(el, values, labels, opts) {
@@ -53,96 +91,8 @@ import {
     s += "</svg>";
     el.innerHTML = s;
   }
-  const view = d.perRound.slice(-20);
-  const viewLabels = view.map((r) => r.date.slice(5).replace("-", "/"));
-  lineChart($("scoreChart"), view.map((r) => r.score), viewLabels, { markMin: true, showX: false, height: 130, title: "スコア" });
-  lineChart($("puttChart"), view.map((r) => r.putts), viewLabels, { markMin: false, height: 110, title: "パット" });
 
-  /* ---------- KPI ---------- */
-  d.kpis.forEach((k) => {
-    const el = document.createElement("div");
-    el.className = "kpi";
-    if (k.now === null) {
-      el.innerHTML = `<div class="v">-</div><div class="k">${k.label}</div>`;
-    } else {
-      const diff = k.diff;
-      const good = diff === null ? null : (k.lowerBetter ? diff < 0 : diff > 0);
-      const cls = diff === null || Math.abs(diff) < 0.05 ? "flat" : good ? "up" : "down";
-      const arrow = diff === null || Math.abs(diff) < 0.05 ? "→" : diff > 0 ? "▲" : "▼";
-      const diffText = diff === null ? "" : Math.abs(diff).toFixed(k.digits === 0 ? 0 : 1) + k.unit;
-      el.innerHTML = `<div class="v">${k.now.toFixed(k.digits)}<small>${k.unit}</small></div>`
-        + `<div class="k">${k.label}</div>`
-        + `<div class="d ${cls}">${arrow} ${diffText}</div>`;
-    }
-    $("kpiGrid").appendChild(el);
-  });
-
-  /* ---------- ホールタイプ別(全期間) ---------- */
-  const typeLabels = { 3: "ショート(Par3)", 4: "ミドル(Par4)", 5: "ロング(Par5)" };
-  $("typeN").textContent = `全${d.perRound.length}ラウンド`;
-  d.typeAverages.forEach((t) => {
-    const el = document.createElement("div");
-    el.className = "kpi";
-    const avgText = t.avg === null ? "-" : (t.avg >= 0 ? "+" : "") + t.avg.toFixed(1);
-    el.innerHTML = `<div class="v">${avgText}</div><div class="k">${typeLabels[t.par]} ×${t.n}H</div>`;
-    $("typeGrid").appendChild(el);
-  });
-
-  /* ---------- コース別・ホール別 ---------- */
-  let currentCourseIdx = 0;
-  function renderCourse() {
-    const c = d.courseStats[currentCourseIdx];
-    const holes = $("courseHoles");
-    holes.innerHTML = "";
-    const known = c.avgs.filter((a) => a !== null);
-    const maxAvg = known.length ? Math.max(...known) : null;
-    const minAvg = known.length ? Math.min(...known) : null;
-    c.avgs.forEach((a, i) => {
-      const el = document.createElement("div");
-      const worst = a !== null && maxAvg !== null && a >= maxAvg - 0.15;
-      const best = a !== null && minAvg !== null && a <= minAvg + 0.15;
-      el.className = "hole-tile" + (worst ? " worst" : best ? " best" : "");
-      const avgText = a === null ? "-" : (a >= 0 ? "+" : "") + a.toFixed(1);
-      el.innerHTML = `<div class="no">${i + 1} <span style="opacity:.7">P${c.course.pars[i]}</span></div><div class="avg">${avgText}</div>`;
-      holes.appendChild(el);
-    });
-    if (maxAvg !== null) {
-      const wi = c.avgs.indexOf(maxAvg);
-      $("courseInsight").innerHTML = `要対策は<b>${wi + 1}番(Par${c.course.pars[wi]})</b>の平均+${maxAvg.toFixed(1)}。`;
-    } else {
-      $("courseInsight").textContent = "";
-    }
-  }
-  const courseRow = $("courseRow");
-  if (d.courseStats.length === 0) {
-    $("courseHoles").innerHTML = '<div class="empty-state">コースデータがありません。</div>';
-  } else {
-    d.courseStats.forEach((c, i) => {
-      const b = document.createElement("button");
-      b.className = "seg-btn" + (i === currentCourseIdx ? " selected" : "");
-      b.textContent = `${c.course.name} ×${c.rounds}R`;
-      b.dataset.i = i;
-      b.addEventListener("click", () => {
-        currentCourseIdx = i;
-        Array.prototype.forEach.call(courseRow.children, (x) => x.classList.toggle("selected", +x.dataset.i === i));
-        renderCourse();
-      });
-      courseRow.appendChild(b);
-    });
-    renderCourse();
-  }
-
-  /* ---------- 距離帯別パット(累積) ---------- */
-  const puttRows = $("puttDistRows");
-  d.distancePutts.forEach((r) => {
-    const tr = document.createElement("tr");
-    tr.innerHTML = `<td>${r.band}</td><td>${r.attempts}</td>`
-      + `<td>${r.cupInRate === null ? "-" : r.cupInRate + "%"}</td>`
-      + `<td>${r.threePuttRate === null ? "-" : r.threePuttRate + "%"}</td>`;
-    puttRows.appendChild(tr);
-  });
-
-  /* ---------- ヒートマップ ---------- */
+  /* ---------- ヒートマップ(パット用: 従来の9マス) ---------- */
   function buildHeatmapUI(m, gridEl, nEl, insightEl, centerLabel, noteEl) {
     gridEl.innerHTML = "";
     const n = matrixCount(m);
@@ -229,52 +179,175 @@ import {
     if (noteEl) noteEl.textContent = total && total < 10 ? `球数が少ないため参考程度(${total}球)。` : "";
   }
 
-  const clubOrder = settings.clubs.filter((c) => c !== "PT" && d.byClub[c] && d.byClub[c].length);
-  let currentGroup = "IR", currentClub = clubOrder[0] || null;
+  /* ---------- 絞り込み結果に応じてダッシュボード全体を再描画 ---------- */
+  function renderAll() {
+    const d = dashboardSummary(rounds, courses, filter);
 
-  function renderShotHm() {
-    const g = CLUB_GROUPS.find((x) => x.key === currentGroup);
-    let shots, title;
-    if (g.key === "CLUB") {
-      shots = d.byClub[currentClub] || [];
-      title = currentClub || "-";
-    } else {
-      shots = d.shotShots.filter((s) => g.test(s.club));
-      title = g.label;
+    document.querySelectorAll(".filter-count").forEach((el) => {
+      el.textContent = d.perRound.length ? `該当${d.perRound.length}ラウンド` : "";
+    });
+
+    if (d.perRound.length === 0) {
+      $("emptyCardText").textContent = "条件に合うラウンドがありません。";
+      $("emptyCard").style.display = "";
+      $("dashboardBody").style.display = "none";
+      return;
     }
-    $("shotTitle").textContent = title;
-    build13HeatmapUI(build13Heat(shots), $("shotGrid"), $("shotN"), $("shotInsight"), $("shotNote"));
+    $("emptyCard").style.display = "none";
+    $("dashboardBody").style.display = "flex";
+
+    const firstDate = d.perRound[0].date, lastDate = d.perRound[d.perRound.length - 1].date;
+    $("headerSub").textContent = `${firstDate}〜${lastDate} 全${d.perRound.length}ラウンド`;
+    $("avgRecent").textContent = d.avgRecent3 !== null ? d.avgRecent3.toFixed(1) : "-";
+    $("best").textContent = d.best !== null ? d.best : "-";
+    $("avgAll").textContent = d.avgAll !== null ? d.avgAll.toFixed(1) : "-";
+
+    const view = d.perRound.slice(-20);
+    const viewLabels = view.map((r) => r.date.slice(5).replace("-", "/"));
+    lineChart($("scoreChart"), view.map((r) => r.score), viewLabels, { markMin: true, showX: false, height: 130, title: "スコア" });
+    lineChart($("puttChart"), view.map((r) => r.putts), viewLabels, { markMin: false, height: 110, title: "パット" });
+
+    /* ---------- KPI ---------- */
+    $("kpiGrid").innerHTML = "";
+    d.kpis.forEach((k) => {
+      const el = document.createElement("div");
+      el.className = "kpi";
+      if (k.now === null) {
+        el.innerHTML = `<div class="v">-</div><div class="k">${k.label}</div>`;
+      } else {
+        const diff = k.diff;
+        const good = diff === null ? null : (k.lowerBetter ? diff < 0 : diff > 0);
+        const cls = diff === null || Math.abs(diff) < 0.05 ? "flat" : good ? "up" : "down";
+        const arrow = diff === null || Math.abs(diff) < 0.05 ? "→" : diff > 0 ? "▲" : "▼";
+        const diffText = diff === null ? "" : Math.abs(diff).toFixed(k.digits === 0 ? 0 : 1) + k.unit;
+        el.innerHTML = `<div class="v">${k.now.toFixed(k.digits)}<small>${k.unit}</small></div>`
+          + `<div class="k">${k.label}</div>`
+          + `<div class="d ${cls}">${arrow} ${diffText}</div>`;
+      }
+      $("kpiGrid").appendChild(el);
+    });
+
+    /* ---------- ホールタイプ別 ---------- */
+    const typeLabels = { 3: "ショート(Par3)", 4: "ミドル(Par4)", 5: "ロング(Par5)" };
+    $("typeN").textContent = `該当${d.perRound.length}ラウンド`;
+    $("typeGrid").innerHTML = "";
+    d.typeAverages.forEach((t) => {
+      const el = document.createElement("div");
+      el.className = "kpi";
+      const avgText = t.avg === null ? "-" : (t.avg >= 0 ? "+" : "") + t.avg.toFixed(1);
+      el.innerHTML = `<div class="v">${avgText}</div><div class="k">${typeLabels[t.par]} ×${t.n}H</div>`;
+      $("typeGrid").appendChild(el);
+    });
+
+    /* ---------- コース別・ホール別 ---------- */
+    let currentCourseIdx = 0;
+    function renderCourse() {
+      const c = d.courseStats[currentCourseIdx];
+      const holes = $("courseHoles");
+      holes.innerHTML = "";
+      const known = c.avgs.filter((a) => a !== null);
+      const maxAvg = known.length ? Math.max(...known) : null;
+      const minAvg = known.length ? Math.min(...known) : null;
+      c.avgs.forEach((a, i) => {
+        const el = document.createElement("div");
+        const worst = a !== null && maxAvg !== null && a >= maxAvg - 0.15;
+        const best = a !== null && minAvg !== null && a <= minAvg + 0.15;
+        el.className = "hole-tile" + (worst ? " worst" : best ? " best" : "");
+        const avgText = a === null ? "-" : (a >= 0 ? "+" : "") + a.toFixed(1);
+        el.innerHTML = `<div class="no">${i + 1} <span style="opacity:.7">P${c.course.pars[i]}</span></div><div class="avg">${avgText}</div>`;
+        holes.appendChild(el);
+      });
+      if (maxAvg !== null) {
+        const wi = c.avgs.indexOf(maxAvg);
+        $("courseInsight").innerHTML = `要対策は<b>${wi + 1}番(Par${c.course.pars[wi]})</b>の平均+${maxAvg.toFixed(1)}。`;
+      } else {
+        $("courseInsight").textContent = "";
+      }
+    }
+    const courseRow = $("courseRow");
+    courseRow.innerHTML = "";
+    if (d.courseStats.length === 0) {
+      $("courseHoles").innerHTML = '<div class="empty-state">コースデータがありません。</div>';
+      $("courseInsight").textContent = "";
+    } else {
+      d.courseStats.forEach((c, i) => {
+        const b = document.createElement("button");
+        b.className = "seg-btn" + (i === currentCourseIdx ? " selected" : "");
+        b.textContent = `${c.course.name} ×${c.rounds}R`;
+        b.dataset.i = i;
+        b.addEventListener("click", () => {
+          currentCourseIdx = i;
+          Array.prototype.forEach.call(courseRow.children, (x) => x.classList.toggle("selected", +x.dataset.i === i));
+          renderCourse();
+        });
+        courseRow.appendChild(b);
+      });
+      renderCourse();
+    }
+
+    /* ---------- 距離帯別パット(累積) ---------- */
+    const puttRows = $("puttDistRows");
+    puttRows.innerHTML = "";
+    d.distancePutts.forEach((r) => {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${r.band}</td><td>${r.attempts}</td>`
+        + `<td>${r.cupInRate === null ? "-" : r.cupInRate + "%"}</td>`
+        + `<td>${r.threePuttRate === null ? "-" : r.threePuttRate + "%"}</td>`;
+      puttRows.appendChild(tr);
+    });
+
+    /* ---------- ヒートマップ ---------- */
+    const clubOrder = settings.clubs.filter((c) => c !== "PT" && d.byClub[c] && d.byClub[c].length);
+    let currentGroup = "IR", currentClub = clubOrder[0] || null;
+
+    function renderShotHm() {
+      const g = CLUB_GROUPS.find((x) => x.key === currentGroup);
+      let shots, title;
+      if (g.key === "CLUB") {
+        shots = d.byClub[currentClub] || [];
+        title = currentClub || "-";
+      } else {
+        shots = d.shotShots.filter((s) => g.test(s.club));
+        title = g.label;
+      }
+      $("shotTitle").textContent = title;
+      build13HeatmapUI(build13Heat(shots), $("shotGrid"), $("shotN"), $("shotInsight"), $("shotNote"));
+    }
+
+    const segRow = $("segRow"), clubPick = $("clubPick");
+    segRow.innerHTML = "";
+    clubPick.innerHTML = "";
+    CLUB_GROUPS.forEach((g) => {
+      const b = document.createElement("button");
+      b.className = "seg-btn" + (g.key === currentGroup ? " selected" : "");
+      b.textContent = g.label;
+      b.dataset.key = g.key;
+      b.addEventListener("click", () => {
+        currentGroup = g.key;
+        Array.prototype.forEach.call(segRow.children, (x) => x.classList.toggle("selected", x.dataset.key === g.key));
+        clubPick.classList.toggle("show", g.key === "CLUB");
+        if (g.key === "CLUB") {
+          Array.prototype.forEach.call(clubPick.children, (x) => x.classList.toggle("selected", x.dataset.club === currentClub));
+        }
+        renderShotHm();
+      });
+      segRow.appendChild(b);
+    });
+    clubOrder.forEach((c) => {
+      const b = document.createElement("button");
+      b.className = "seg-btn";
+      b.textContent = c;
+      b.dataset.club = c;
+      b.addEventListener("click", () => {
+        currentClub = c;
+        Array.prototype.forEach.call(clubPick.children, (x) => x.classList.toggle("selected", x.dataset.club === c));
+        renderShotHm();
+      });
+      clubPick.appendChild(b);
+    });
+    renderShotHm();
+    buildHeatmapUI(buildHeatMatrix(d.puttShots), $("puttGridHm"), $("puttN"), $("puttInsight"), "惜しい");
   }
 
-  const segRow = $("segRow"), clubPick = $("clubPick");
-  CLUB_GROUPS.forEach((g) => {
-    const b = document.createElement("button");
-    b.className = "seg-btn" + (g.key === currentGroup ? " selected" : "");
-    b.textContent = g.label;
-    b.dataset.key = g.key;
-    b.addEventListener("click", () => {
-      currentGroup = g.key;
-      Array.prototype.forEach.call(segRow.children, (x) => x.classList.toggle("selected", x.dataset.key === g.key));
-      clubPick.classList.toggle("show", g.key === "CLUB");
-      if (g.key === "CLUB") {
-        Array.prototype.forEach.call(clubPick.children, (x) => x.classList.toggle("selected", x.dataset.club === currentClub));
-      }
-      renderShotHm();
-    });
-    segRow.appendChild(b);
-  });
-  clubOrder.forEach((c) => {
-    const b = document.createElement("button");
-    b.className = "seg-btn";
-    b.textContent = c;
-    b.dataset.club = c;
-    b.addEventListener("click", () => {
-      currentClub = c;
-      Array.prototype.forEach.call(clubPick.children, (x) => x.classList.toggle("selected", x.dataset.club === c));
-      renderShotHm();
-    });
-    clubPick.appendChild(b);
-  });
-  renderShotHm();
-  buildHeatmapUI(buildHeatMatrix(d.puttShots), $("puttGridHm"), $("puttN"), $("puttInsight"), "惜しい");
+  renderAll();
 })();

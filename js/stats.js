@@ -409,13 +409,18 @@ export function computeReview(round) {
 /* ---------- ダッシュボード用の一括計算 ----------
    6-1: 既定では18ホール完了したラウンドのみを対象にする(9ホールラウンドが
    18ホールラウンドと同じ重みで平均・ベスト・推移に混ざるのを防ぐ)。
-   バッチ8の絞り込み行「ラウンド:18Hのみ/すべて」から opts.roundFilter="all" を
-   渡すと9ホールラウンドも含める。 */
+   バッチ8: 絞り込み行「コース/ティー/ラウンド(18Hのみ既定/すべて)」を
+   opts = { roundFilter, courseId, tee } として渡す。いずれも既定は「すべて」
+   (roundFilterのみ既定"18")。 */
 export function dashboardSummary(allRounds, courses, opts) {
   const roundFilter = (opts && opts.roundFilter) || "18";
+  const courseFilter = (opts && opts.courseId) || "all";
+  const teeFilter = (opts && opts.tee) || "all";
   const rounds = allRounds
     .filter((r) => r.complete)
     .filter((r) => roundFilter === "all" || playedHoleCount(r) === 18)
+    .filter((r) => courseFilter === "all" || r.courseId === courseFilter)
+    .filter((r) => teeFilter === "all" || r.tee === teeFilter)
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 

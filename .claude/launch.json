@@ -4,8 +4,8 @@
     {
       "name": "golf-log-static",
       "runtimeExecutable": "python",
-      "runtimeArgs": [".claude/nocache_server.py", "8802"],
-      "port": 8802
+      "runtimeArgs": [".claude/nocache_server.py", "8803"],
+      "port": 8803
     }
   ]
 }

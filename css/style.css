@@ -439,6 +439,20 @@ header.hole-header {
 .club-toggle.on { background: var(--green); border-color: var(--green); color: #fff; }
 .club-toggle:disabled { opacity: .65; }
 
+/* ---- バッチ8: 累積ダッシュボードの絞り込み行 ---- */
+.filter-bar {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 10px 12px;
+}
+.filter-field { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.filter-field label { font-size: 10px; color: var(--muted); font-weight: 600; }
+.filter-field select {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 6px; font-size: 12px;
+  font-weight: 600; color: var(--ink); background: #fff; width: 100%;
+}
+.card h2 small.filter-count { color: var(--muted); font-weight: 600; }
+
 .backup-row { display: flex; flex-direction: column; gap: 10px; }
 .backup-status { font-size: 12px; color: var(--sub); }
 .backup-status.stale { color: var(--warn); font-weight: 600; }
