@@ -1,6 +1,7 @@
 import { getRound, getCourse, getCourses, getSettings, saveRound, saveCourse, deleteRound } from "./db.js";
 import {
-  computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, CLUB_GROUPS, activeHoles
+  computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS, activeHoles,
+  build13Heat, heat13Total, heatmap13InsightHTML
 } from "./stats.js";
 
 function formatDateJP(iso) {
@@ -100,6 +101,69 @@ function formatDateJP(iso) {
     if (noteEl) noteEl.textContent = n && n < 10 ? `球数が少ないため参考程度(${n}球)。累積画面で精度が上がります。` : "";
   }
 
+  // 7-2: 13マスヒートマップ(内側9マス=セーフだった球のばらつき、外周4マス=大ミスの方向)
+  function build13HeatmapUI(d, gridEl, nEl, insightEl, noteEl) {
+    gridEl.innerHTML = "";
+    const total = heat13Total(d);
+    const bigMiss = d.left + d.right + d.back + d.front;
+    nEl.textContent = `全${total}球(うち大ミス${bigMiss}球)`;
+
+    let gridMax = 0;
+    d.grid.forEach((row) => row.forEach((v) => { if (v > gridMax) gridMax = v; }));
+    const missMax = Math.max(d.left, d.right, d.back, d.front);
+
+    function pct(v) { return total ? Math.round(v / total * 100) : 0; }
+    function content(v, label) {
+      const lbl = label ? `<span class="lbl">${label}</span>` : "";
+      return v ? `${lbl}<span class="pct">${pct(v)}%</span><span class="cnt">${v}球</span>` : `${lbl}<span class="cnt" style="opacity:.5">-</span>`;
+    }
+    function paint(el, v, max, ramp) {
+      const step = max ? Math.round(v / max * (ramp.length - 1)) : 0;
+      el.style.background = ramp[step];
+      el.style.color = step >= 4 ? "#fff" : "#0b0b0b";
+    }
+
+    const left = document.createElement("div");
+    left.className = "hm-cell hm-bar-left";
+    paint(left, d.left, missMax, RAMP_RED);
+    left.innerHTML = content(d.left, "左へ<br>大ミス");
+    gridEl.appendChild(left);
+
+    const top = document.createElement("div");
+    top.className = "hm-cell hm-bar-top";
+    paint(top, d.back, missMax, RAMP_RED);
+    top.innerHTML = content(d.back, "奥へ大ミス");
+    gridEl.appendChild(top);
+
+    for (let r = 0; r < 3; r++) {
+      for (let c = 0; c < 3; c++) {
+        const v = d.grid[r][c];
+        const cell = document.createElement("div");
+        cell.className = "hm-cell";
+        cell.style.gridColumn = c + 2;
+        cell.style.gridRow = r + 2;
+        paint(cell, v, gridMax, RAMP);
+        cell.innerHTML = content(v, null);
+        gridEl.appendChild(cell);
+      }
+    }
+
+    const right = document.createElement("div");
+    right.className = "hm-cell hm-bar-right";
+    paint(right, d.right, missMax, RAMP_RED);
+    right.innerHTML = content(d.right, "右へ<br>大ミス");
+    gridEl.appendChild(right);
+
+    const bottom = document.createElement("div");
+    bottom.className = "hm-cell hm-bar-bottom";
+    paint(bottom, d.front, missMax, RAMP_RED);
+    bottom.innerHTML = content(d.front, "手前へ大ミス");
+    gridEl.appendChild(bottom);
+
+    insightEl.innerHTML = heatmap13InsightHTML(d, "ナイス");
+    if (noteEl) noteEl.textContent = total && total < 10 ? `球数が少ないため参考程度(${total}球)。累積画面で精度が上がります。` : "";
+  }
+
   const clubsWithData = settings.clubs.filter((c) => c !== "PT" && rv.shotHeatSource.some((s) => s.club === c));
   let currentGroup = "IR", currentClub = clubsWithData[0] || null;
 
@@ -114,7 +178,7 @@ function formatDateJP(iso) {
       title = g.label;
     }
     $("shotTitle").textContent = title;
-    buildHeatmapUI(buildHeatMatrix(shots), $("shotGrid"), $("shotN"), $("shotInsight"), "ナイス", $("shotNote"));
+    build13HeatmapUI(build13Heat(shots), $("shotGrid"), $("shotN"), $("shotInsight"), $("shotNote"));
   }
 
   const segRow = $("segRow"), clubPick = $("clubPick");

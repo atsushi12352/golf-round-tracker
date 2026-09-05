@@ -26,6 +26,10 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
   let selectedLie = "ティー";
   let selectedPuttDist = "ミドル";
   let editIndex = null;
+  let pickMode = null; // "ob" | "penalty" | null(通常モード)
+  let pendingDir = null; // OBのティーショットで方向確定後、処置(打ち直し/前進)待ち
+  // 大ミス方向選択パネルで有効になるマス([row,col] → 方向)
+  const DIR_MAP = { "0,1": "奥", "1,0": "左", "1,2": "右", "2,1": "手前" };
 
   const $ = (id) => document.getElementById(id);
 
@@ -63,6 +67,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
   }
 
   function selectClub(c) {
+    resetPick();
     selectedClub = c;
     Array.prototype.forEach.call(clubGrid.children, (b) => b.classList.toggle("selected", b.dataset.club === c));
     const isPutt = c === "PT";
@@ -70,9 +75,14 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     $("puttMode").style.display = isPutt ? "" : "none";
     $("lieRow").style.display = isPutt ? "none" : "";
     if (isPutt) updatePuttDistRow();
+    updateGuideText();
+  }
+
+  function updateGuideText() {
+    const isPutt = selectedClub === "PT";
     $("guide").innerHTML = isPutt
       ? "<b>パット</b>の結果をタップ(入ったら「カップイン」)"
-      : "<b>" + c + "</b> の結果のマスをタップ";
+      : "<b>" + selectedClub + "</b> の結果のマスをタップ";
   }
 
   /* ---- 9 grid ---- */
@@ -86,27 +96,93 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     row.forEach((label, ci) => {
       const b = document.createElement("button");
       b.className = "cell" + (ri === 1 && ci === 1 ? " center" : "");
+      b.dataset.rc = ri + "," + ci;
       b.innerHTML = ri === 1 && ci === 1 ? "ナイス<small>狙い通り</small>" : label;
       b.addEventListener("click", () => {
-        record({ club: selectedClub, lie: selectedLie, result: label, kind: (ri === 1 && ci === 1) ? "nice" : "normal" });
+        if (pickMode) {
+          const dir = DIR_MAP[b.dataset.rc];
+          if (!dir) return;
+          onPickDir(dir);
+        } else {
+          record({ club: selectedClub, lie: selectedLie, result: label, kind: (ri === 1 && ci === 1) ? "nice" : "normal" });
+        }
       });
       grid9.appendChild(b);
     });
   });
 
-  Array.prototype.forEach.call(document.querySelectorAll("[data-special]"), (b) => {
+  /* ---- 7-1/7-1b: OB・ペナの方向選択 + OBティーショットの処置選択 ---- */
+  function startPick(mode) {
+    pickMode = mode;
+    grid9.classList.add("pick");
+    Array.prototype.forEach.call(grid9.children, (b) => {
+      const dir = DIR_MAP[b.dataset.rc];
+      b.classList.toggle("dir", !!dir);
+      if (dir) b.textContent = dir;
+    });
+    $("specialRow").style.display = "none";
+    $("cancelRow").style.display = "";
+    $("choiceRow").style.display = "none";
+    $("guide").className = "guide bigmiss";
+    $("guide").innerHTML = (mode === "ob" ? "OB" : "ペナ") + "はどっちに?";
+  }
+
+  function onPickDir(dir) {
+    // ティーショットのOBだけ、続けて打ち直し/前進の2択を挟む
+    if (pickMode === "ob" && selectedLie === "ティー") {
+      pendingDir = dir;
+      $("cancelRow").style.display = "none";
+      $("choiceRow").style.display = "";
+      $("guide").innerHTML = "OB" + dir + " — 処置は?";
+      return;
+    }
+    const kind = pickMode;
+    const label = kind === "ob" ? "OB" : "ペナ";
+    record({ club: selectedClub, lie: selectedLie, result: label + dir, kind, dir, adv: false });
+    resetPick();
+  }
+
+  $("choiceReplay").addEventListener("click", () => {
+    record({ club: selectedClub, lie: selectedLie, result: "OB" + pendingDir, kind: "ob", dir: pendingDir, adv: false });
+    resetPick();
+  });
+  $("choiceAdvance").addEventListener("click", () => {
+    record({ club: selectedClub, lie: selectedLie, result: "OB" + pendingDir, kind: "ob", dir: pendingDir, adv: true });
+    resetPick();
+  });
+  $("cancelPickBtn").addEventListener("click", resetPick);
+  $("cancelChoiceBtn").addEventListener("click", resetPick);
+
+  function resetPick() {
+    if (!pickMode) return;
+    pickMode = null;
+    pendingDir = null;
+    grid9.classList.remove("pick");
+    Array.prototype.forEach.call(grid9.children, (b) => {
+      const [ri, ci] = b.dataset.rc.split(",").map(Number);
+      b.classList.remove("dir");
+      b.innerHTML = (ri === 1 && ci === 1) ? "ナイス<small>狙い通り</small>" : GRID[ri][ci];
+    });
+    $("specialRow").style.display = "";
+    $("cancelRow").style.display = "none";
+    $("choiceRow").style.display = "none";
+    $("guide").className = "guide";
+    updateGuideText();
+  }
+
+  Array.prototype.forEach.call(document.querySelectorAll("#specialRow [data-special]"), (b) => {
     b.addEventListener("click", () => {
       const r = b.dataset.special;
       if (r === "チップイン") {
         const wasEdit = editIndex !== null;
         record({ club: selectedClub, lie: selectedLie, result: "チップイン", kind: "in" });
         if (!wasEdit) holeOut();
-      } else if (r.indexOf("OB") === 0) {
-        record({ club: selectedClub, lie: selectedLie, result: r, kind: "ob" });
-      } else if (r === "ペナルティ") {
-        record({ club: selectedClub, lie: selectedLie, result: "ペナルティ", kind: "penalty" });
-      } else {
-        record({ club: selectedClub, lie: selectedLie, result: r, kind: "miss" });
+      } else if (r === "トップ・チョロ") {
+        record({ club: selectedClub, lie: selectedLie, result: "トップ・チョロ", kind: "miss" });
+      } else if (r === "OB") {
+        startPick("ob");
+      } else if (r === "ペナ") {
+        startPick("penalty");
       }
     });
   });
@@ -155,7 +231,14 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
   });
 
   /* ---- record / undo ---- */
-  function penalties() { return shots.filter((s) => s.kind === "ob" || s.kind === "penalty").length; }
+  // 7-1b: OBは打ち直し+1/前進+2、赤杭・池のペナルティは常に+1(js/stats.jsのholeStatsと同じ計算)
+  function penalties() {
+    return shots.reduce((a, s) => {
+      if (s.kind === "ob") return a + (s.adv ? 2 : 1);
+      if (s.kind === "penalty") return a + 1;
+      return a;
+    }, 0);
+  }
   function score() { return shots.length + penalties(); }
   function putts() { return shots.filter((s) => s.club === "PT").length; }
 
@@ -174,7 +257,13 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     setLie(inferLie(shots), true);
     updatePuttDistRow();
     render();
-    flash(shot.club + " " + shot.result, (shot.kind === "ob" || shot.kind === "penalty") ? "+1打罰" : (shot.dist ? shot.dist + "パット" : (shot.lie !== "グリーン" ? shot.lie + "から" : "")));
+    let sub;
+    if (shot.kind === "ob") sub = shot.adv ? "前進 +2打罰" : "打ち直し +1打罰";
+    else if (shot.kind === "penalty") sub = "+1打罰";
+    else if (shot.dist) sub = shot.dist + "パット";
+    else if (shot.lie !== "グリーン") sub = shot.lie + "から";
+    else sub = "";
+    flash(shot.club + " " + shot.result, sub);
     if (navigator.vibrate) navigator.vibrate(10);
   }
 
@@ -222,7 +311,8 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
       shots.forEach((s, i) => {
         const chip = document.createElement("span");
         chip.className = "log-chip" + ((s.kind === "ob" || s.kind === "penalty") ? " bad" : s.kind === "miss" ? " warn" : "");
-        chip.textContent = (i + 1) + " " + (s.lie === "グリーン" ? (s.dist ? s.dist + " " : "") : s.lie + " ") + s.club + " " + s.result;
+        const advSuffix = s.kind === "ob" ? (s.adv ? "(前進)" : "(打直)") : "";
+        chip.textContent = (i + 1) + " " + (s.lie === "グリーン" ? (s.dist ? s.dist + " " : "") : s.lie + " ") + s.club + " " + s.result + advSuffix;
         log.appendChild(chip);
       });
       log.scrollLeft = log.scrollWidth;
@@ -285,8 +375,9 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
       div.className = "shot-item";
       div.innerHTML = '<span class="no">' + (i + 1) + '打</span>'
         + '<span class="club">' + s.club + '</span>'
-        + '<span class="res">' + s.result + ' <small style="color:var(--sub);font-size:11px;">' + s.lie + (s.dist ? "・" + s.dist : "") + '</small></span>'
-        + ((s.kind === "ob" || s.kind === "penalty") ? '<span class="tag bad">+1罰</span>'
+        + '<span class="res">' + s.result + (s.kind === "ob" ? (s.adv ? "(前進)" : "(打直)") : "") + ' <small style="color:var(--sub);font-size:11px;">' + s.lie + (s.dist ? "・" + s.dist : "") + '</small></span>'
+        + (s.kind === "ob" ? '<span class="tag bad">+' + (s.adv ? 2 : 1) + '罰</span>'
+          : s.kind === "penalty" ? '<span class="tag bad">+1罰</span>'
           : s.kind === "in" || s.kind === "nice" ? '<span class="tag">Good</span>'
           : s.kind === "miss" ? '<span class="tag warn">ミス</span>' : "");
       const fixBtn = document.createElement("button");

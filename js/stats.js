@@ -6,7 +6,8 @@ export function inferLie(shots) {
   if (shots.length === 0) return "ティー";
   const last = shots[shots.length - 1];
   if (last.kind === "penalty") return "ラフ";
-  if (last.kind === "ob") return last.lie;
+  // 7-1b: OBは前進(adv=true)なら特設ティー=FW扱い、打ち直しなら元のライに戻る
+  if (last.kind === "ob") return last.adv ? "FW" : last.lie;
   if (last.kind === "miss") return last.lie;
   if (last.result.indexOf("左") >= 0 || last.result.indexOf("右") >= 0) return "ラフ";
   return "FW";
@@ -251,6 +252,86 @@ export function puttHeatShots(allShots) {
   return allShots.filter((s) => s.club === "PT" && s.kind === "putt");
 }
 
+/* ---------- 7-1/7-2: 大ミス方向・13マスヒートマップ ---------- */
+export const RAMP_RED = ["#fbeee8", "#f6dbcf", "#efc3ae", "#e5a184", "#d67f5c", "#c5623a", "#b0421f"];
+
+// 旧データ(dir未記録のOB左/OB右)は結果文字列からdirを補って読む(非破壊・書き込みなし)。
+// ペナルティ(赤杭・池)で方向未記録のものはnullのまま(呼び出し側で「手前」に合流させる)。
+export function shotDir(s) {
+  if (s.dir) return s.dir;
+  if (s.kind === "ob") {
+    if (s.result === "OB左") return "左";
+    if (s.result === "OB右") return "右";
+  }
+  return null;
+}
+
+// 13マスヒートマップ対象ショット(パット以外の全ショットからkind="in"を除いたもの)
+export function heat13Shots(allShots) {
+  return allShots.filter((s) => s.club !== "PT" && s.kind !== "in");
+}
+
+export function build13Heat(shots) {
+  const grid = [[0, 0, 0], [0, 0, 0], [0, 0, 0]];
+  let left = 0, right = 0, back = 0, front = 0;
+  shots.forEach((s) => {
+    if (s.kind === "ob" || s.kind === "penalty") {
+      const dir = shotDir(s);
+      if (dir === "左") { left++; return; }
+      if (dir === "右") { right++; return; }
+      if (dir === "奥") { back++; return; }
+      // "手前"、または方向未記録の旧ペナルティは下段(手前へ大ミス)に合流
+      front++; return;
+    }
+    if (s.kind === "miss") { front++; return; }
+    const [r, c] = heatmapCellPos(s.result);
+    grid[r][c]++;
+  });
+  return { grid, left, right, back, front };
+}
+
+export function heat13Total(d) {
+  let n = 0;
+  d.grid.forEach((row) => row.forEach((v) => { n += v; }));
+  return n + d.left + d.right + d.back + d.front;
+}
+
+// 13マスヒートマップ読み解き文(mock/heatmap13.htmlの文面に合わせる。助言は入れない)
+export function heatmap13InsightHTML(d, centerLabel) {
+  const total = heat13Total(d);
+  const nice = d.grid[1][1];
+  const niceShare = total ? Math.round(nice / total * 100) : 0;
+  if (!total) return `${centerLabel}率<b>${niceShare}%</b>。データがまだ足りません。`;
+
+  const missTotal = total - nice;
+  const bigMiss = d.left + d.right + d.back + d.front;
+  const LABELS = [["左オーバー", "オーバー", "右オーバー"], ["左", "ナイス", "右"], ["左ショート", "ショート", "右ショート"]];
+  const cells = [];
+  for (let r = 0; r < 3; r++) for (let c = 0; c < 3; c++) {
+    if (r === 1 && c === 1) continue;
+    cells.push({ v: d.grid[r][c], name: LABELS[r][c], big: false });
+  }
+  cells.push({ v: d.left, name: "左への大ミス", big: true });
+  cells.push({ v: d.right, name: "右への大ミス", big: true });
+  cells.push({ v: d.back, name: "奥への大ミス", big: true });
+  cells.push({ v: d.front, name: "手前への大ミス", big: true });
+  let best = { v: -1, name: "", big: false };
+  cells.forEach((x) => { if (x.v > best.v) best = x; });
+  const bestShare = missTotal ? Math.round(best.v / missTotal * 100) : 0;
+
+  let txt = `${centerLabel}率<b>${niceShare}%</b>。ミスで最も多いのは<b${best.big ? ' class="bad"' : ""}>${best.name}</b>(ミスの${bestShare}%)。`;
+  if (bigMiss) {
+    const bigShare = total ? Math.round(bigMiss / total * 100) : 0;
+    const parts = [];
+    if (d.left) parts.push(`左${d.left}`);
+    if (d.right) parts.push(`右${d.right}`);
+    if (d.back) parts.push(`奥${d.back}`);
+    if (d.front) parts.push(`手前${d.front}`);
+    txt += `大ミスは<b class="bad">${bigShare}%</b>(${parts.join("・")})。`;
+  }
+  return txt;
+}
+
 /* ---------- §6.6 距離帯別パット ---------- */
 export function distancePuttStats(holes) {
   const bands = PUTT_DISTS.map((p) => p.key);
@@ -320,7 +401,7 @@ export function computeReview(round) {
     kpis: computeKPIs(holes),
     typeAverages: holeTypeAverages(holes),
     distancePutts: distancePuttStats(holes),
-    shotHeatSource: shotHeatShots(allShots),
+    shotHeatSource: heat13Shots(allShots),
     puttHeatSource: puttHeatShots(allShots)
   };
 }
@@ -413,7 +494,7 @@ export function dashboardSummary(allRounds, courses, opts) {
 
   // ヒートマップ(全期間・クラブ別)
   const allShots = perRound.flatMap((r) => r.shots);
-  const shotShots = shotHeatShots(allShots);
+  const shotShots = heat13Shots(allShots);
   const puttShots = puttHeatShots(allShots);
   const byClub = {};
   shotShots.forEach((s) => { (byClub[s.club] = byClub[s.club] || []).push(s); });

@@ -149,6 +149,23 @@ svg text { font-family: inherit; }
   background: var(--bg); border-radius: 8px; padding: 8px 10px;
 }
 .hm-insight b { color: var(--green-dark); }
+.hm-insight b.bad { color: var(--bad); }
+
+/* ---- 7-2: 13マスヒートマップ(内側9マス+外周4マスの大ミス) ---- */
+.hm-grid13 {
+  display: grid;
+  grid-template-columns: 40px 1fr 1fr 1fr 40px;
+  grid-template-rows: 40px 1fr 1fr 1fr 40px;
+  gap: 5px;
+}
+.hm-grid13 .hm-cell { min-height: 54px; }
+.hm-cell .lbl { font-size: 9px; opacity: .8; margin-bottom: 1px; }
+.hm-bar-left { grid-column: 1; grid-row: 1 / span 5; }
+.hm-bar-right { grid-column: 5; grid-row: 1 / span 5; }
+.hm-bar-left .lbl, .hm-bar-right .lbl { font-size: 10px; font-weight: 700; opacity: .9; margin-bottom: 2px; }
+.hm-bar-top { grid-column: 2 / span 3; grid-row: 1; flex-direction: row; gap: 6px; min-height: 40px; }
+.hm-bar-bottom { grid-column: 2 / span 3; grid-row: 5; flex-direction: row; gap: 6px; min-height: 40px; }
+.hm-bar-top .lbl, .hm-bar-bottom .lbl { font-size: 11px; margin: 0; font-weight: 600; }
 
 /* ---- hole tiles(コース別・ホール別) ---- */
 .hole-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
@@ -272,7 +289,7 @@ header.hole-header {
 .axis-x span { font-size: 11px; color: var(--sub); text-align: center; }
 .axis-x span:first-child { visibility: hidden; }
 
-.special-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.special-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
 .sp-btn {
   border: 1px solid var(--line); background: #fff; border-radius: 12px;
   min-height: 52px; font-size: 13px; font-weight: 600;
@@ -284,6 +301,24 @@ header.hole-header {
 .sp-btn.miss:active { background: var(--warn-pale); }
 .sp-btn.in { color: var(--green-dark); border-color: var(--green); background: var(--green-pale); }
 .sp-btn.in:active { background: var(--green); color: #fff; }
+
+/* ---- 7-1: 大ミス方向モード(9グリッドがそのまま方向選択パネルに変わる) ---- */
+.grid9.pick .cell { opacity: .28; pointer-events: none; }
+.grid9.pick .cell.dir {
+  opacity: 1; pointer-events: auto;
+  background: var(--danger-pale); border-color: #edc7c1; color: var(--danger);
+  font-size: 16px; font-weight: 700;
+}
+.grid9.pick .cell.dir:active { background: var(--danger); color: #fff; }
+.guide.bigmiss { color: var(--danger); font-weight: 600; }
+.cancel-pick {
+  width: 100%; border: 1px solid var(--line); background: #fff; color: var(--sub);
+  border-radius: 12px; min-height: 44px; font-size: 13px; font-weight: 600;
+}
+.cancel-pick:active { background: var(--bg); }
+.choice-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.sp-btn.choice { min-height: 66px; font-size: 15px; }
+.sp-btn.choice small { font-size: 10px; margin-top: 3px; font-weight: 500; }
 
 .putt-area { display: flex; flex-direction: column; gap: 8px; }
 .cupin-btn {

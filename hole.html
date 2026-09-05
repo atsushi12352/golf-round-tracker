@@ -40,7 +40,6 @@
     </div>
 
     <div class="lie-row" id="lieRow">
-      <span class="lie-label">ライ</span>
       <div class="lie-chips" id="lieChips"></div>
     </div>
 
@@ -52,18 +51,26 @@
       <div class="axis-x" style="margin-top:4px;">
         <span>.</span><span>左</span><span>中</span><span>右</span>
       </div>
-      <div class="special-row" style="margin-top:10px;">
-        <button class="sp-btn ob" data-special="OB左">OB左<small style="font-weight:500;">+1罰</small></button>
-        <button class="sp-btn ob" data-special="OB右">OB右<small style="font-weight:500;">+1罰</small></button>
-        <button class="sp-btn ob" data-special="ペナルティ">ペナ<small style="font-weight:500;">赤杭・池 +1罰</small></button>
-        <button class="sp-btn miss" data-special="チョロ/ダフリ">チョロ<br>ダフリ</button>
+      <div class="special-row" id="specialRow" style="margin-top:10px;">
+        <button class="sp-btn ob" data-special="OB">OB</button>
+        <button class="sp-btn ob" data-special="ペナ">ペナ<small style="font-weight:500;">赤杭・池</small></button>
+        <button class="sp-btn miss" data-special="トップ・チョロ">トップ<br>チョロ</button>
         <button class="sp-btn in" data-special="チップイン">チップ<br>イン</button>
+      </div>
+      <div id="cancelRow" style="margin-top:10px;display:none;">
+        <button class="cancel-pick" id="cancelPickBtn">やめる</button>
+      </div>
+      <div id="choiceRow" style="margin-top:10px;display:none;">
+        <div class="choice-grid">
+          <button class="sp-btn ob choice" id="choiceReplay">打ち直し<small>+1罰・元の位置から</small></button>
+          <button class="sp-btn ob choice" id="choiceAdvance">前進<small>+2罰・特設ティー等</small></button>
+        </div>
+        <button class="cancel-pick" id="cancelChoiceBtn" style="width:100%;margin-top:6px;">やめる</button>
       </div>
     </div>
 
     <div id="puttMode" style="display:none;">
       <div class="lie-row" id="puttDistRow" style="margin-bottom:8px;">
-        <span class="lie-label">距離</span>
         <div class="lie-chips" id="puttDistChips" style="grid-template-columns: repeat(4, 1fr);"></div>
       </div>
       <div class="grid-wrap">
