@@ -181,7 +181,7 @@ function saveFilter(f) {
 
   /* ---------- 絞り込み結果に応じてダッシュボード全体を再描画 ---------- */
   function renderAll() {
-    const d = dashboardSummary(rounds, courses, filter);
+    const d = dashboardSummary(rounds, courses, { ...filter, kpiIds: settings.kpis });
 
     document.querySelectorAll(".filter-count").forEach((el) => {
       el.textContent = d.perRound.length ? `該当${d.perRound.length}ラウンド` : "";
@@ -216,11 +216,13 @@ function saveFilter(f) {
         el.innerHTML = `<div class="v">-</div><div class="k">${k.label}</div>`;
       } else {
         const diff = k.diff;
-        const good = diff === null ? null : (k.lowerBetter ? diff < 0 : diff > 0);
-        const cls = diff === null || Math.abs(diff) < 0.05 ? "flat" : good ? "up" : "down";
+        const neutral = k.lowerBetter === null || k.lowerBetter === undefined;
+        const good = diff === null || neutral ? null : (k.lowerBetter ? diff < 0 : diff > 0);
+        const cls = diff === null || neutral || Math.abs(diff) < 0.05 ? "flat" : good ? "up" : "down";
         const arrow = diff === null || Math.abs(diff) < 0.05 ? "→" : diff > 0 ? "▲" : "▼";
         const diffText = diff === null ? "" : Math.abs(diff).toFixed(k.digits === 0 ? 0 : 1) + k.unit;
-        el.innerHTML = `<div class="v">${k.now.toFixed(k.digits)}<small>${k.unit}</small></div>`
+        const nowText = k.kind === "diff" ? (k.now >= 0 ? "+" : "") + k.now.toFixed(k.digits) : k.now.toFixed(k.digits);
+        el.innerHTML = `<div class="v">${nowText}<small>${k.unit}</small></div>`
           + `<div class="k">${k.label}</div>`
           + `<div class="d ${cls}">${arrow} ${diffText}</div>`;
       }

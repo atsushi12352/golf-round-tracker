@@ -1,5 +1,5 @@
 // SPEC §5・§6 の集計ロジック(モックの計算式をShot配列ベースに一般化)
-import { PUTT_DISTS } from "./clubs.js";
+import { PUTT_DISTS, DEFAULT_KPIS } from "./clubs.js";
 
 /* ---------- §5 自動推測ルール ---------- */
 export function inferLie(shots) {
@@ -88,35 +88,220 @@ export function roundTotals(holes) {
   };
 }
 
-/* ---------- §6.2 KPI(review用: フラクション表示) ---------- */
-export function computeKPIs(holes) {
-  const HS = holes.map(holeStats);
-  const allShots = holes.flatMap((h) => h.shots);
-  const fwHoles = HS.filter((h) => h.fwKeep !== null);
-  const fwKept = fwHoles.filter((h) => h.fwKeep).length;
-  const girN = HS.filter((h) => h.gir).length;
-  const nonGir = HS.filter((h) => !h.gir);
-  const scrambled = nonGir.filter((h) => h.scramble).length;
-  const gsBunkerHoles = HS.filter((h) => h.gsBunker);
-  const sandSaved = gsBunkerHoles.filter((h) => h.sandSave).length;
-  const threePutts = HS.filter((h) => h.three).length;
-  const bogeyOnN = HS.filter((h) => h.bogeyOn).length;
-  const putts = HS.reduce((a, h) => a + h.putts, 0);
-  const obTotal = HS.reduce((a, h) => a + h.pen, 0);
-  const attempts = allShots.filter((s) => s.club !== "PT" && s.kind !== "in").length;
-  const niceN = allShots.filter((s) => s.kind === "nice").length;
+/* ---------- 9-1: KPIカタログ(選択式タイル用) ----------
+   各エントリの calc(holes) は { value, num?, den? } を返す。
+   value は「そのラウンド1件分」の生の値(未丸め)。率は0-100、平均はそのままの数値、
+   件数はそのままの整数。null は「このラウンドでは計算不能」を表す。
+   kind: "rate"(%、num/den付き) | "count"(整数) | "avg"(平均、num/den付き) | "diff"(差分、符号付き) */
+function rateAgg(num, den) { return { value: den ? (num / den) * 100 : null, num, den }; }
+function avgAgg(sum, den) { return { value: den ? sum / den : null, num: sum, den }; }
 
-  return [
-    { id: "putts", label: "パット合計", value: putts, unit: "" },
-    { id: "fwKeep", label: `FWキープ ${fwKept}/${fwHoles.length}`, value: fwHoles.length ? Math.round(fwKept / fwHoles.length * 100) : 0, unit: "%" },
-    { id: "gir", label: `パーオン ${girN}/${HS.length}`, value: Math.round(girN / HS.length * 100), unit: "%" },
-    { id: "bogeyOn", label: `ボギーオン ${bogeyOnN}/${HS.length}`, value: Math.round(bogeyOnN / HS.length * 100), unit: "%" },
-    { id: "scramble", label: "寄せワン", value: `${scrambled}/${nonGir.length}`, unit: "" },
-    { id: "sandSave", label: "サンドセーブ", value: gsBunkerHoles.length ? `${sandSaved}/${gsBunkerHoles.length}` : "-", unit: "" },
-    { id: "threePutts", label: "3パット", value: threePutts, unit: "回" },
-    { id: "penalty", label: "ペナルティ", value: obTotal, unit: "打" },
-    { id: "niceRate", label: "ナイス率(ショット)", value: attempts ? Math.round(niceN / attempts * 100) : 0, unit: "%" }
-  ];
+export const KPI_GROUPS = [
+  { key: "score", label: "スコア系" },
+  { key: "tee", label: "ティーショット系" },
+  { key: "shot", label: "ショット系" },
+  { key: "short", label: "ショートゲーム系" },
+  { key: "putt", label: "パット系" }
+];
+
+export const KPI_CATALOG = [
+  /* ---- スコア系 ---- */
+  {
+    id: "penalty", group: "score", label: "ペナルティ打数", unit: "打", dashDigits: 1, lowerBetter: true, kind: "count",
+    calc: (holes) => ({ value: holes.map(holeStats).reduce((a, h) => a + h.pen, 0) })
+  },
+  {
+    id: "dboOver", group: "score", label: "ダボ以上", unit: "", dashDigits: 1, lowerBetter: true, kind: "count",
+    calc: (holes) => ({ value: holes.map(holeStats).filter((h) => h.score >= h.par + 2).length })
+  },
+  {
+    id: "parSaveRate", group: "score", label: "パーセーブ率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); return rateAgg(HS.filter((h) => h.score <= h.par).length, HS.length); }
+  },
+  {
+    id: "birdies", group: "score", label: "バーディ数", unit: "", dashDigits: 1, lowerBetter: false, kind: "count",
+    calc: (holes) => ({ value: holes.map(holeStats).filter((h) => h.score <= h.par - 1).length })
+  },
+  {
+    id: "frontBackDiff", group: "score", label: "前半/後半スコア差", unit: "打", dashDigits: 1, lowerBetter: null, kind: "diff",
+    calc: (holes) => {
+      if (holes.length < 18) return { value: null };
+      const HS = holes.map(holeStats);
+      const front = HS.slice(0, 9).reduce((a, h) => a + h.score, 0);
+      const back = HS.slice(9, 18).reduce((a, h) => a + h.score, 0);
+      return { value: front - back };
+    }
+  },
+  /* ---- ティーショット系 ---- */
+  {
+    id: "fwKeep", group: "tee", label: "FWキープ率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); const fw = HS.filter((h) => h.fwKeep !== null); return rateAgg(fw.filter((h) => h.fwKeep).length, fw.length); }
+  },
+  {
+    id: "teeSafeRate", group: "tee", label: "ティーショット無事率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => {
+      const HS = holes.map(holeStats);
+      const teeHoles = holes.filter((h, i) => HS[i].par >= 4 && h.shots && h.shots[0]);
+      const safe = teeHoles.filter((h) => { const t = h.shots[0]; return t.kind !== "ob" && t.kind !== "penalty" && t.kind !== "miss"; });
+      return rateAgg(safe.length, teeHoles.length);
+    }
+  },
+  {
+    id: "fwKeepScoreDiff", group: "tee", label: "FWキープ時とミス時のスコア差", unit: "打", dashDigits: 1, lowerBetter: null, kind: "diff",
+    calc: (holes) => {
+      const HS = holes.map(holeStats).filter((h) => h.fwKeep !== null);
+      const kept = HS.filter((h) => h.fwKeep), missed = HS.filter((h) => !h.fwKeep);
+      if (!kept.length || !missed.length) return { value: null };
+      const avg = (arr) => arr.reduce((a, h) => a + h.score, 0) / arr.length;
+      return { value: avg(kept) - avg(missed) };
+    }
+  },
+  /* ---- ショット系 ---- */
+  {
+    id: "gir", group: "shot", label: "パーオン率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); return rateAgg(HS.filter((h) => h.gir).length, HS.length); }
+  },
+  {
+    id: "bogeyOn", group: "shot", label: "ボギーオン率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); return rateAgg(HS.filter((h) => h.bogeyOn).length, HS.length); }
+  },
+  {
+    id: "niceRate", group: "shot", label: "ナイス率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const shots = heat13Shots(holes.flatMap((h) => h.shots)); return rateAgg(shots.filter((s) => s.kind === "nice").length, shots.length); }
+  },
+  {
+    id: "clubNiceDR", group: "shot", label: "ナイス率(ドライバー)", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const shots = heat13Shots(holes.flatMap((h) => h.shots)).filter((s) => CLUB_GROUPS.find((g) => g.key === "DR").test(s.club)); return rateAgg(shots.filter((s) => s.kind === "nice").length, shots.length); }
+  },
+  {
+    id: "clubNiceIR", group: "shot", label: "ナイス率(アイアン)", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const shots = heat13Shots(holes.flatMap((h) => h.shots)).filter((s) => CLUB_GROUPS.find((g) => g.key === "IR").test(s.club)); return rateAgg(shots.filter((s) => s.kind === "nice").length, shots.length); }
+  },
+  {
+    id: "clubNiceWG", group: "shot", label: "ナイス率(ウェッジ)", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const shots = heat13Shots(holes.flatMap((h) => h.shots)).filter((s) => CLUB_GROUPS.find((g) => g.key === "WG").test(s.club)); return rateAgg(shots.filter((s) => s.kind === "nice").length, shots.length); }
+  },
+  {
+    id: "roughToGreen", group: "shot", label: "ラフからのグリーンオン率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => roughToGreenAgg(holes)
+  },
+  {
+    id: "par3Gir", group: "shot", label: "パー3のパーオン率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats).filter((h) => h.par === 3); return rateAgg(HS.filter((h) => h.gir).length, HS.length); }
+  },
+  /* ---- ショートゲーム系 ---- */
+  {
+    id: "scramble", group: "short", label: "寄せワン", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); const nonGir = HS.filter((h) => !h.gir); return rateAgg(nonGir.filter((h) => h.scramble).length, nonGir.length); }
+  },
+  {
+    id: "sandSave", group: "short", label: "サンドセーブ", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); const gs = HS.filter((h) => h.gsBunker); return rateAgg(gs.filter((h) => h.sandSave).length, gs.length); }
+  },
+  {
+    id: "troubleEscape", group: "short", label: "トラブル脱出率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => troubleEscapeAgg(holes)
+  },
+  /* ---- パット系 ---- */
+  {
+    id: "putts", group: "putt", label: "パット合計", unit: "", dashDigits: 1, lowerBetter: true, kind: "count",
+    calc: (holes) => ({ value: holes.map(holeStats).reduce((a, h) => a + h.putts, 0) })
+  },
+  {
+    id: "threePutts", group: "putt", label: "3パット回数", unit: "回", dashDigits: 1, lowerBetter: true, kind: "count",
+    calc: (holes) => ({ value: holes.map(holeStats).filter((h) => h.three).length })
+  },
+  {
+    id: "onePuttRate", group: "putt", label: "1パット率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); return rateAgg(HS.filter((h) => h.putts === 1).length, HS.length); }
+  },
+  {
+    id: "twoPuttOrLessRate", group: "putt", label: "2パット以内率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => { const HS = holes.map(holeStats); return rateAgg(HS.filter((h) => h.putts <= 2).length, HS.length); }
+  },
+  {
+    id: "girPuttAvg", group: "putt", label: "パーオンホールの平均パット数", unit: "", dashDigits: 1, lowerBetter: true, kind: "avg",
+    calc: (holes) => { const HS = holes.map(holeStats).filter((h) => h.gir); return avgAgg(HS.reduce((a, h) => a + h.putts, 0), HS.length); }
+  },
+  {
+    id: "shortPuttSuccess", group: "putt", label: "1m以内の成功率", unit: "%", dashDigits: 0, lowerBetter: false, kind: "rate",
+    calc: (holes) => {
+      const putts = holes.flatMap((h) => h.shots).filter((s) => s.club === "PT" && s.dist === "1m以内");
+      return rateAgg(putts.filter((s) => s.kind === "in").length, putts.length);
+    }
+  },
+  {
+    id: "longThreePuttRate", group: "putt", label: "10m以上からの3パット率", unit: "%", dashDigits: 0, lowerBetter: true, kind: "rate",
+    calc: (holes) => { const r = distancePuttStats(holes).find((b) => b.band === "ロング"); return { value: r && r.threePuttRate !== null ? r.threePuttRate : null }; }
+  }
+];
+
+// ラフからのグリーンオン率(ホール単位でショットの前後関係を見る必要があるため専用関数)
+function roughToGreenAgg(holes) {
+  let num = 0, den = 0;
+  holes.forEach((h) => {
+    const shots = h.shots || [];
+    shots.forEach((s, i) => {
+      if (s.lie !== "ラフ" || s.club === "PT") return;
+      den++;
+      const next = shots[i + 1];
+      if (next && next.club === "PT") num++;
+    });
+  });
+  return rateAgg(num, den);
+}
+
+// トラブル脱出率(林・バンカーからのショットの次の状況を見る)
+function troubleEscapeAgg(holes) {
+  let num = 0, den = 0;
+  holes.forEach((h) => {
+    const shots = h.shots || [];
+    shots.forEach((s, i) => {
+      if ((s.lie !== "林" && s.lie !== "バンカー") || s.club === "PT") return;
+      den++;
+      const next = shots[i + 1];
+      if (next && (next.lie === "FW" || next.lie === "グリーン")) num++;
+      else if (!next && s.kind === "in") num++;
+    });
+  });
+  return rateAgg(num, den);
+}
+
+function formatKpiValue(entry, value) {
+  if (value === null || value === undefined) return "-";
+  if (entry.kind === "rate") return Math.round(value);
+  if (entry.kind === "avg") return Math.round(value * 10) / 10;
+  if (entry.kind === "diff") return (value >= 0 ? "+" : "") + Math.round(value);
+  return value;
+}
+
+function kpiLabel(entry, agg) {
+  if (agg.value === null || agg.den === undefined || agg.den === null) return entry.label;
+  if (entry.kind === "rate") return `${entry.label} ${agg.num}/${agg.den}`;
+  if (entry.kind === "avg") return `${entry.label}(×${agg.den}H)`;
+  return entry.label;
+}
+
+// このラウンド(holes配列)単位でのKPI生値(未丸め)。ダッシュボードの平均化に使う。
+export function kpiRoundValue(id, holes) {
+  const entry = KPI_CATALOG.find((k) => k.id === id);
+  if (!entry) return null;
+  return entry.calc(holes).value;
+}
+
+/* ---------- §6.2 KPI(review用: 選択式・フラクション表示) ---------- */
+export function computeKPIs(holes, kpiIds) {
+  const ids = (kpiIds && kpiIds.length === 9) ? kpiIds : DEFAULT_KPIS;
+  return ids.map((id) => {
+    const entry = KPI_CATALOG.find((k) => k.id === id);
+    if (!entry) return null;
+    const agg = entry.calc(holes);
+    return {
+      id, label: kpiLabel(entry, agg), unit: entry.unit,
+      value: formatKpiValue(entry, agg.value), raw: agg.value,
+      kind: entry.kind, lowerBetter: entry.lowerBetter, digits: entry.dashDigits
+    };
+  }).filter(Boolean);
 }
 
 /* ---------- §6.4 スコアロスTOP3 ---------- */
@@ -385,7 +570,7 @@ export function activeHoles(round) {
 }
 
 /* ---------- 振り返り画面用の一括計算 ---------- */
-export function computeReview(round) {
+export function computeReview(round, kpiIds) {
   const holes = activeHoles(round);
   const HS = holes.map(holeStats);
   const total = HS.reduce((a, h) => a + h.score, 0);
@@ -398,12 +583,50 @@ export function computeReview(round) {
   return {
     HS, total, parTotal, toPar: total - parTotal, putts, obTotal, threePutts,
     losses: lossTop3(holes),
-    kpis: computeKPIs(holes),
+    kpis: computeKPIs(holes, kpiIds),
     typeAverages: holeTypeAverages(holes),
     distancePutts: distancePuttStats(holes),
     shotHeatSource: heat13Shots(allShots),
     puttHeatSource: puttHeatShots(allShots)
   };
+}
+
+/* ---------- 9-2: 比較対象(振り返り画面のKPI比較) ----------
+   mode: "recent5"(既定・直近5R平均) | "all"(全期間平均) | "best"(自己ベストのラウンド)
+       | "course"(同じコースでの平均) | "prev"(前回のラウンド)
+   いずれも現在表示中のラウンド自身は比較対象から除外する。日付は文字列比較
+   (YYYY-MM-DD)で厳密未満(<)判定のため、同日に複数ラウンドがある場合は
+   「直近5R/前回」の対象に含まれないことがある(単純化した仕様)。 */
+export function compareRoundsFor(mode, allRounds, currentRound) {
+  const complete = allRounds
+    .filter((r) => r.complete && r.id !== currentRound.id)
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+  if (mode === "all") return complete;
+  if (mode === "course") return complete.filter((r) => r.courseId === currentRound.courseId);
+  if (mode === "best") {
+    if (!complete.length) return [];
+    let best = complete[0], bestScore = roundTotals(activeHoles(best)).score;
+    complete.forEach((r) => {
+      const sc = roundTotals(activeHoles(r)).score;
+      if (sc < bestScore) { bestScore = sc; best = r; }
+    });
+    return [best];
+  }
+  const before = complete.filter((r) => r.date < currentRound.date);
+  if (mode === "prev") return before.length ? [before[before.length - 1]] : [];
+  // 既定: recent5(直近5ラウンドの平均、現在のラウンドより前のもの)
+  return before.slice(-5);
+}
+
+// 指定したラウンド集合について、各KPIの平均値(未丸め)を返す。1件なら実質そのラウンドの値。
+export function compareKpiValues(rounds, kpiIds) {
+  const result = {};
+  kpiIds.forEach((id) => {
+    const vals = rounds.map((r) => kpiRoundValue(id, activeHoles(r))).filter((v) => v !== null && v !== undefined);
+    result[id] = vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
+  });
+  return result;
 }
 
 /* ---------- ダッシュボード用の一括計算 ----------
@@ -416,6 +639,7 @@ export function dashboardSummary(allRounds, courses, opts) {
   const roundFilter = (opts && opts.roundFilter) || "18";
   const courseFilter = (opts && opts.courseId) || "all";
   const teeFilter = (opts && opts.tee) || "all";
+  const kpiIds = (opts && opts.kpiIds && opts.kpiIds.length === 9) ? opts.kpiIds : DEFAULT_KPIS;
   const rounds = allRounds
     .filter((r) => r.complete)
     .filter((r) => roundFilter === "all" || playedHoleCount(r) === 18)
@@ -427,55 +651,29 @@ export function dashboardSummary(allRounds, courses, opts) {
   const perRound = rounds.map((r) => {
     const holes = activeHoles(r);
     const t = roundTotals(holes);
-    const nonGir = t.HS.filter((h) => !h.gir);
-    const scrambled = nonGir.filter((h) => h.scramble).length;
-    const gsBunkerHoles = t.HS.filter((h) => h.gsBunker);
-    const sandSaved = gsBunkerHoles.filter((h) => h.sandSave).length;
-    const fwHoles = t.HS.filter((h) => h.fwKeep !== null);
-    const fwKept = fwHoles.filter((h) => h.fwKeep).length;
-    const girN = t.HS.filter((h) => h.gir).length;
-    const bogeyOnN = t.HS.filter((h) => h.bogeyOn).length;
-    const threePutts = t.HS.filter((h) => h.three).length;
     const allShots = holes.flatMap((h) => h.shots);
-    const attempts = allShots.filter((s) => s.club !== "PT" && s.kind !== "in").length;
-    const niceN = allShots.filter((s) => s.kind === "nice").length;
-    return {
-      round: r, date: r.date, score: t.score, putts: t.putts,
-      fwPct: fwHoles.length ? fwKept / fwHoles.length * 100 : null,
-      girPct: girN / t.HS.length * 100,
-      bogeyOnPct: bogeyOnN / t.HS.length * 100,
-      scrPct: nonGir.length ? scrambled / nonGir.length * 100 : null,
-      sandPct: gsBunkerHoles.length ? sandSaved / gsBunkerHoles.length * 100 : null,
-      three: threePutts, pen: t.pen,
-      nicePct: attempts ? niceN / attempts * 100 : null,
-      shots: allShots
-    };
+    const kpiRaw = {};
+    kpiIds.forEach((id) => { kpiRaw[id] = kpiRoundValue(id, holes); });
+    return { round: r, date: r.date, score: t.score, putts: t.putts, kpiRaw, shots: allShots };
   });
 
   const scores = perRound.map((r) => r.score);
   const recent3 = perRound.slice(-3);
   const prev3 = perRound.slice(-6, -3);
 
-  function avgKey(arr, key) {
-    const vals = arr.map((r) => r[key]).filter((v) => v !== null && v !== undefined);
+  function avgKpi(arr, id) {
+    const vals = arr.map((r) => r.kpiRaw[id]).filter((v) => v !== null && v !== undefined);
     return vals.length ? vals.reduce((a, b) => a + b, 0) / vals.length : null;
   }
 
-  const KPI_DEFS = [
-    { id: "putts", label: "パット/R", unit: "", digits: 1, lowerBetter: true, key: "putts" },
-    { id: "fwKeep", label: "FWキープ", unit: "%", digits: 0, key: "fwPct" },
-    { id: "gir", label: "パーオン", unit: "%", digits: 0, key: "girPct" },
-    { id: "bogeyOn", label: "ボギーオン", unit: "%", digits: 0, key: "bogeyOnPct" },
-    { id: "scramble", label: "寄せワン", unit: "%", digits: 0, key: "scrPct" },
-    { id: "sandSave", label: "サンドセーブ", unit: "%", digits: 0, key: "sandPct" },
-    { id: "threePutts", label: "3パット/R", unit: "回", digits: 1, lowerBetter: true, key: "three" },
-    { id: "penalty", label: "ペナルティ/R", unit: "打", digits: 1, lowerBetter: true, key: "pen" },
-    { id: "niceRate", label: "ナイス率", unit: "%", digits: 0, key: "nicePct" }
-  ];
-  const kpis = KPI_DEFS.map((k) => {
-    const now = avgKey(recent3, k.key);
-    const before = avgKey(prev3, k.key);
-    return { ...k, now, before, diff: now !== null && before !== null ? now - before : null };
+  const kpis = kpiIds.map((id) => {
+    const entry = KPI_CATALOG.find((k) => k.id === id);
+    const now = avgKpi(recent3, id);
+    const before = avgKpi(prev3, id);
+    return {
+      id, label: entry.label, unit: entry.unit, digits: entry.dashDigits, lowerBetter: entry.lowerBetter, kind: entry.kind,
+      now, before, diff: now !== null && before !== null ? now - before : null
+    };
   });
 
   const allHoles = rounds.flatMap((r) => activeHoles(r));

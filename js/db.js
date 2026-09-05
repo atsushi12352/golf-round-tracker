@@ -77,6 +77,10 @@ export async function getSettings() {
   if (!s) {
     s = { id: SETTINGS_ID, clubs: DEFAULT_CLUBS.slice(), kpis: DEFAULT_KPIS.slice() };
     await dbPut("settings", s);
+  } else if (!Array.isArray(s.kpis) || s.kpis.length !== 9) {
+    // 9-1: 既存設定にkpisフィールドが無い場合の非破壊マイグレーション(不足分を補うだけ)
+    s.kpis = DEFAULT_KPIS.slice();
+    await dbPut("settings", s);
   }
   return s;
 }

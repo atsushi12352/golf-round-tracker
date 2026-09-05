@@ -453,6 +453,30 @@ header.hole-header {
 }
 .card h2 small.filter-count { color: var(--muted); font-weight: 600; }
 
+/* ---- バッチ9-1: 設定画面のKPI枠選択 ---- */
+.kpi-slot-list { display: flex; flex-direction: column; gap: 6px; }
+.kpi-slot { display: flex; align-items: center; gap: 8px; }
+.kpi-slot .slot-no {
+  flex: 0 0 auto; width: 20px; height: 20px; border-radius: 50%; background: var(--bg);
+  color: var(--muted); font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center;
+}
+.kpi-slot select {
+  flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: 8px; padding: 8px 8px;
+  font-size: 13px; font-weight: 600; color: var(--ink); background: #fff;
+}
+
+/* ---- バッチ9-2: 振り返り画面の比較対象セレクタ ---- */
+.compare-row { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.compare-row label { font-size: 11px; color: var(--sub); font-weight: 600; }
+.compare-row select {
+  border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font-size: 12px;
+  font-weight: 600; color: var(--ink); background: #fff;
+}
+.kpi .cmp { font-size: 10px; font-weight: 700; margin-top: 2px; }
+.kpi .cmp.up { color: var(--good); }
+.kpi .cmp.down { color: var(--bad); }
+.kpi .cmp.flat { color: var(--muted); font-weight: 500; }
+
 .backup-row { display: flex; flex-direction: column; gap: 10px; }
 .backup-status { font-size: 12px; color: var(--sub); }
 .backup-status.stale { color: var(--warn); font-weight: 600; }

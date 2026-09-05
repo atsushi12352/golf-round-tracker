@@ -2,10 +2,52 @@ import { getSettings, saveSettings, getCourses, getRounds, deleteCourse } from "
 import { CLUB_MASTER } from "./clubs.js";
 import { PRESET_COURSES } from "./presetCourses.js";
 import { exportBackup, importBackupFile, getLastBackupAt, daysSinceLastBackup, STALE_DAYS } from "./backup.js";
+import { KPI_CATALOG, KPI_GROUPS } from "./stats.js";
 
 (async function () {
   const $ = (id) => document.getElementById(id);
   const settings = await getSettings();
+
+  /* ---- 9-1: 表示する指標(9枠)---- */
+  function renderKpiSlots() {
+    const list = $("kpiSlotList");
+    list.innerHTML = "";
+    settings.kpis.forEach((id, i) => {
+      const row = document.createElement("div");
+      row.className = "kpi-slot";
+      const no = document.createElement("span");
+      no.className = "slot-no";
+      no.textContent = i + 1;
+      const select = document.createElement("select");
+      KPI_GROUPS.forEach((g) => {
+        const og = document.createElement("optgroup");
+        og.label = g.label;
+        KPI_CATALOG.filter((k) => k.group === g.key).forEach((k) => {
+          const opt = document.createElement("option");
+          opt.value = k.id;
+          opt.textContent = k.label;
+          og.appendChild(opt);
+        });
+        select.appendChild(og);
+      });
+      select.value = id;
+      select.addEventListener("change", async () => {
+        const newId = select.value;
+        const otherIdx = settings.kpis.indexOf(newId);
+        if (otherIdx !== -1 && otherIdx !== i) {
+          // 同じ指標が既に別の枠にある場合は、その枠と入れ替える(重複させない)
+          settings.kpis[otherIdx] = settings.kpis[i];
+        }
+        settings.kpis[i] = newId;
+        await saveSettings(settings);
+        renderKpiSlots();
+      });
+      row.appendChild(no);
+      row.appendChild(select);
+      list.appendChild(row);
+    });
+  }
+  renderKpiSlots();
 
   const grid = $("clubToggleGrid");
   function renderClubs() {

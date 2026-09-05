@@ -1,7 +1,7 @@
-import { getRound, getCourse, getCourses, getSettings, saveRound, saveCourse, deleteRound } from "./db.js";
+import { getRound, getCourse, getCourses, getRounds, getSettings, saveRound, saveCourse, deleteRound } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS, activeHoles,
-  build13Heat, heat13Total, heatmap13InsightHTML
+  build13Heat, heat13Total, heatmap13InsightHTML, compareRoundsFor, compareKpiValues
 } from "./stats.js";
 
 function formatDateJP(iso) {
@@ -9,6 +9,19 @@ function formatDateJP(iso) {
   const w = ["日", "月", "火", "水", "木", "金", "土"][d.getDay()];
   return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()}(${w})`;
 }
+
+// 9-2: 比較対象の選択状態を保存し、次回開いたときも維持する
+const COMPARE_KEY = "golf-log:review-compare";
+function loadCompareMode() {
+  try {
+    const v = localStorage.getItem(COMPARE_KEY);
+    return ["recent5", "all", "best", "course", "prev"].includes(v) ? v : "recent5";
+  } catch (e) { return "recent5"; }
+}
+function saveCompareMode(mode) {
+  try { localStorage.setItem(COMPARE_KEY, mode); } catch (e) { /* 無視 */ }
+}
+const COMPARE_LABELS = { recent5: "直近5R平均", all: "全期間平均", best: "ベスト", course: "同コース平均", prev: "前回" };
 
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -18,8 +31,8 @@ function formatDateJP(iso) {
   const round = await getRound(roundId);
   if (!round) { location.href = "index.html"; return; }
 
-  const [course, settings, allCourses] = await Promise.all([getCourse(round.courseId), getSettings(), getCourses()]);
-  const rv = computeReview(round);
+  const [course, settings, allCourses, allRounds] = await Promise.all([getCourse(round.courseId), getSettings(), getCourses(), getRounds()]);
+  const rv = computeReview(round, settings.kpis);
 
   $("headerDate").textContent = formatDateJP(round.date);
   $("courseNameBtn").textContent = course ? course.name : "コース不明";
@@ -49,13 +62,36 @@ function formatDateJP(iso) {
     });
   }
 
-  /* ---- KPI ---- */
-  rv.kpis.forEach((k) => {
-    const d = document.createElement("div");
-    d.className = "kpi";
-    d.innerHTML = `<div class="v">${k.value}<small>${k.unit}</small></div><div class="k">${k.label}</div>`;
-    $("kpiGrid").appendChild(d);
+  /* ---- 9-2: KPI + 比較対象 ---- */
+  function renderKpis() {
+    const mode = $("compareSelect").value;
+    const compareRounds = compareRoundsFor(mode, allRounds, round);
+    const compareValues = compareKpiValues(compareRounds, settings.kpis);
+    const cmpLabel = COMPARE_LABELS[mode];
+
+    $("kpiGrid").innerHTML = "";
+    rv.kpis.forEach((k) => {
+      const d = document.createElement("div");
+      d.className = "kpi";
+      let html = `<div class="v">${k.value}<small>${k.unit}</small></div><div class="k">${k.label}</div>`;
+      const cmp = compareValues[k.id];
+      if (cmp !== null && cmp !== undefined && k.raw !== null && k.raw !== undefined) {
+        const diff = k.raw - cmp;
+        const neutral = k.lowerBetter === null || k.lowerBetter === undefined;
+        const cls = neutral || Math.abs(diff) < 0.05 ? "flat" : (k.lowerBetter ? diff < 0 : diff > 0) ? "up" : "down";
+        const cmpText = k.kind === "diff" ? (cmp >= 0 ? "+" : "") + Math.round(cmp) : (Math.round(cmp * 10) / 10);
+        html += `<div class="cmp ${cls}">${cmpLabel} ${cmpText}${k.unit}</div>`;
+      }
+      d.innerHTML = html;
+      $("kpiGrid").appendChild(d);
+    });
+  }
+  $("compareSelect").value = loadCompareMode();
+  $("compareSelect").addEventListener("change", () => {
+    saveCompareMode($("compareSelect").value);
+    renderKpis();
   });
+  renderKpis();
 
   /* ---- ホールタイプ別 ---- */
   const typeLabels = { 3: "ショート", 4: "ミドル", 5: "ロング" };
