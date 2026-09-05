@@ -1,6 +1,6 @@
 // オフライン完全動作のためのcache-first Service Worker。
 // バージョン文字列を上げるとinstall時に再キャッシュ、activate時に旧キャッシュを破棄する。
-const CACHE_VERSION = "golf-log-v4";
+const CACHE_VERSION = "golf-log-v5";
 const PRECACHE_URLS = [
   "./",
   "index.html",
