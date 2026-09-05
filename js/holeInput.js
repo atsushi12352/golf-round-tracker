@@ -397,7 +397,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     if (holeNum >= 18) {
       round.complete = true;
       await saveRound(round);
-      location.href = "review.html?round=" + roundId;
+      location.href = "review.html?round=" + roundId + "&saved=1";
     } else {
       await saveRound(round);
       location.href = "hole.html?round=" + roundId + "&hole=" + (holeNum + 1);
@@ -424,7 +424,7 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
     }
     round.complete = true;
     await saveRound(round);
-    location.href = "review.html?round=" + roundId;
+    location.href = "review.html?round=" + roundId + "&saved=1";
   });
 
   /* ---- 4-1: 保存せずにラウンドを中止 ---- */

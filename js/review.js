@@ -1,8 +1,28 @@
 import { getRound, getCourse, getCourses, getRounds, getSettings, saveRound, saveCourse, deleteRound } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS, activeHoles,
-  build13Heat, heat13Total, heatmap13InsightHTML, compareRoundsFor, compareKpiValues
+  build13Heat, heat13Total, heatmap13InsightHTML, compareRoundsFor, compareKpiValues, DIST_RAMP
 } from "./stats.js";
+import { exportBackup } from "./backup.js";
+
+// 10-1: スコア分布の積み上げ帯(振り返り・累積ダッシュボード共通の描画ロジック)
+function renderScoreDist(dist, barEl, legendEl) {
+  barEl.innerHTML = "";
+  legendEl.innerHTML = "";
+  dist.forEach((d, i) => {
+    const seg = document.createElement("div");
+    seg.className = "dist-seg" + (d.n === 0 ? " empty" : "");
+    seg.style.width = d.pct + "%";
+    seg.style.background = DIST_RAMP[i];
+    seg.title = `${d.label} ${d.n}H(${d.pct}%)`;
+    barEl.appendChild(seg);
+
+    const item = document.createElement("div");
+    item.className = "dist-legend-item";
+    item.innerHTML = `<i style="background:${DIST_RAMP[i]}"></i>${d.label} <b>${d.n}H</b>(${d.pct}%)`;
+    legendEl.appendChild(item);
+  });
+}
 
 function formatDateJP(iso) {
   const d = new Date(iso + "T00:00:00");
@@ -92,6 +112,19 @@ const COMPARE_LABELS = { recent5: "直近5R平均", all: "全期間平均", best
     renderKpis();
   });
   renderKpis();
+
+  /* ---- 10-1: スコア分布 ---- */
+  renderScoreDist(rv.scoreDist, $("distBar"), $("distLegend"));
+
+  /* ---- 10-2: 保存直後のバックアップ導線 ---- */
+  if (params.get("saved") === "1") {
+    $("backupCta").style.display = "";
+    $("backupCtaBtn").addEventListener("click", async () => {
+      await exportBackup();
+      $("backupCtaBtn").textContent = "バックアップしました";
+      $("backupCtaBtn").disabled = true;
+    });
+  }
 
   /* ---- ホールタイプ別 ---- */
   const typeLabels = { 3: "ショート", 4: "ミドル", 5: "ロング" };

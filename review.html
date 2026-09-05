@@ -29,6 +29,11 @@
   </header>
 
   <main>
+    <div class="backup-cta" id="backupCta" style="display:none;">
+      <span class="txt">記録した直後の今がおすすめです。</span>
+      <button class="btn primary" id="backupCtaBtn" type="button">バックアップを保存</button>
+    </div>
+
     <div class="card">
       <h2>スコアロス要因 TOP3</h2>
       <div id="lossList"></div>
@@ -45,6 +50,12 @@
       </select>
     </div>
     <div class="kpi-grid" id="kpiGrid"></div>
+
+    <div class="card">
+      <h2>スコア分布</h2>
+      <div class="dist-bar" id="distBar"></div>
+      <div class="dist-legend" id="distLegend"></div>
+    </div>
 
     <div class="card">
       <h2>ホールタイプ別(平均の±)</h2>

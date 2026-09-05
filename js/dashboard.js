@@ -2,8 +2,27 @@ import { getRounds, getCourses, getSettings } from "./db.js";
 import { TEES } from "./clubs.js";
 import {
   dashboardSummary, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS,
-  build13Heat, heat13Total, heatmap13InsightHTML
+  build13Heat, heat13Total, heatmap13InsightHTML, DIST_RAMP
 } from "./stats.js";
+
+// 10-1: スコア分布の積み上げ帯(review.jsと同じ描画ロジック)
+function renderScoreDist(dist, barEl, legendEl) {
+  barEl.innerHTML = "";
+  legendEl.innerHTML = "";
+  dist.forEach((d, i) => {
+    const seg = document.createElement("div");
+    seg.className = "dist-seg" + (d.n === 0 ? " empty" : "");
+    seg.style.width = d.pct + "%";
+    seg.style.background = DIST_RAMP[i];
+    seg.title = `${d.label} ${d.n}H(${d.pct}%)`;
+    barEl.appendChild(seg);
+
+    const item = document.createElement("div");
+    item.className = "dist-legend-item";
+    item.innerHTML = `<i style="background:${DIST_RAMP[i]}"></i>${d.label} <b>${d.n}H</b>(${d.pct}%)`;
+    legendEl.appendChild(item);
+  });
+}
 
 // バッチ8: 絞り込み状態の保存(次回開いたときも維持する)
 const FILTER_KEY = "golf-log:dashboard-filter";
@@ -228,6 +247,9 @@ function saveFilter(f) {
       }
       $("kpiGrid").appendChild(el);
     });
+
+    /* ---------- スコア分布 ---------- */
+    renderScoreDist(d.scoreDist, $("distBar"), $("distLegend"));
 
     /* ---------- ホールタイプ別 ---------- */
     const typeLabels = { 3: "ショート(Par3)", 4: "ミドル(Par4)", 5: "ロング(Par5)" };

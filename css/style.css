@@ -477,6 +477,24 @@ header.hole-header {
 .kpi .cmp.down { color: var(--bad); }
 .kpi .cmp.flat { color: var(--muted); font-weight: 500; }
 
+/* ---- バッチ10-1: スコア分布の積み上げ帯 ---- */
+.dist-bar { display: flex; width: 100%; height: 28px; border-radius: 8px; overflow: hidden; }
+.dist-seg { height: 100%; }
+.dist-seg.empty { display: none; }
+.dist-legend { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 12px; margin-top: 10px; }
+.dist-legend-item { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--sub); }
+.dist-legend-item i { flex: 0 0 auto; width: 12px; height: 12px; border-radius: 3px; }
+.dist-legend-item b { color: var(--ink); font-variant-numeric: tabular-nums; }
+
+/* ---- バッチ10-2: バックアップ導線 ---- */
+header.hero .warn-banner.strong { background: var(--danger); color: #fff; font-weight: 700; }
+.backup-cta {
+  background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
+  padding: 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px;
+}
+.backup-cta .txt { font-size: 13px; color: var(--sub); }
+.backup-cta .btn { flex: 0 0 auto; min-height: 40px; padding: 0 14px; font-size: 13px; }
+
 .backup-row { display: flex; flex-direction: column; gap: 10px; }
 .backup-status { font-size: 12px; color: var(--sub); }
 .backup-status.stale { color: var(--warn); font-weight: 600; }

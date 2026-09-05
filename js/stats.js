@@ -552,6 +552,28 @@ export function distancePuttStats(holes) {
   });
 }
 
+/* ---------- 10-1: スコア分布(積み上げ帯) ----------
+   区分: イーグル以下 / バーディ / パー / ボギー / ダボ / トリプル以上。
+   色は1系統の濃淡(良い側が薄く、悪い側が濃い)。 */
+export const SCORE_DIST_BUCKETS = [
+  { key: "eagle", label: "イーグル以下", test: (d) => d <= -2 },
+  { key: "birdie", label: "バーディ", test: (d) => d === -1 },
+  { key: "par", label: "パー", test: (d) => d === 0 },
+  { key: "bogey", label: "ボギー", test: (d) => d === 1 },
+  { key: "double", label: "ダボ", test: (d) => d === 2 },
+  { key: "triple", label: "トリプル以上", test: (d) => d >= 3 }
+];
+export const DIST_RAMP = ["#eaf5ef", "#c3e6d5", "#93cdad", "#5fae82", "#357f58", "#164a30"];
+
+export function scoreDistribution(holes) {
+  const HS = holes.map(holeStats);
+  const total = HS.length;
+  return SCORE_DIST_BUCKETS.map((b) => {
+    const n = HS.filter((h) => b.test(h.score - h.par)).length;
+    return { key: b.key, label: b.label, n, pct: total ? Math.round(n / total * 100) : 0 };
+  });
+}
+
 /* ---------- ホールタイプ別 平均± ---------- */
 export function holeTypeAverages(holes) {
   return [3, 4, 5].map((par) => {
@@ -585,6 +607,7 @@ export function computeReview(round, kpiIds) {
     losses: lossTop3(holes),
     kpis: computeKPIs(holes, kpiIds),
     typeAverages: holeTypeAverages(holes),
+    scoreDist: scoreDistribution(holes),
     distancePutts: distancePuttStats(holes),
     shotHeatSource: heat13Shots(allShots),
     puttHeatSource: puttHeatShots(allShots)
@@ -708,6 +731,7 @@ export function dashboardSummary(allRounds, courses, opts) {
     best: scores.length ? Math.min(...scores) : null,
     avgAll: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
     kpis, typeAverages, courseStats, byClub, shotShots, puttShots,
+    scoreDist: scoreDistribution(allHoles),
     distancePutts: distancePuttStats(allHoles)
   };
 }
