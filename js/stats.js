@@ -31,12 +31,29 @@ export function playOrderNumbers(start) {
   return numbers;
 }
 
+/* ---------- 6-3: グリーンサイドバンカー判定 ----------
+   バンカーのライから打ったショットの次のショットがパット(またはそのショット自体が
+   カップイン)であるとき、そのバンカーはグリーンサイドとみなす。
+   フェアウェイバンカー(そこから普通のショットが続く)はサンドセーブの母数から除外する。 */
+function hasGreensideBunker(shots) {
+  for (let i = 0; i < shots.length; i++) {
+    const s = shots[i];
+    if (s.lie !== "バンカー") continue;
+    if (s.kind === "in") return true;
+    const next = shots[i + 1];
+    if (next && next.club === "PT") return true;
+  }
+  return false;
+}
+
 /* ---------- §6.1 ホール単位 ---------- */
 export function holeStats(hole) {
   const shots = hole.shots || [];
-  const obCount = shots.filter((s) => s.kind === "ob").length;
+  const obShots = shots.filter((s) => s.kind === "ob");
+  const obCount = obShots.length;
   const penaltyCount = shots.filter((s) => s.kind === "penalty").length;
-  const pen = obCount + penaltyCount;
+  // 6-1b: OBは打ち直し(+1)/前進(+2)、赤杭・池のペナルティは常に+1
+  const pen = obShots.reduce((a, s) => a + (s.adv ? 2 : 1), 0) + penaltyCount;
   const putts = shots.filter((s) => s.club === "PT").length;
   const score = shots.length + pen;
   const toGreen = shots.length - putts + pen;
@@ -44,16 +61,18 @@ export function holeStats(hole) {
   const bogeyOn = toGreen <= hole.par - 1;
   const scramble = !gir && score <= hole.par;
   const bunker = shots.some((s) => s.lie === "バンカー");
+  const gsBunker = hasGreensideBunker(shots);
   const choro = shots.filter((s) => s.kind === "miss").length;
   const tee = shots[0];
   let fwKeep = null;
   if (hole.par >= 4 && tee) {
-    fwKeep = tee.kind !== "ob" && tee.kind !== "penalty" && tee.result.indexOf("左") < 0 && tee.result.indexOf("右") < 0;
+    fwKeep = tee.kind !== "ob" && tee.kind !== "penalty" && tee.kind !== "miss"
+      && tee.result.indexOf("左") < 0 && tee.result.indexOf("右") < 0;
   }
   return {
     number: hole.number, par: hole.par, score, putts, pen, obCount, penaltyCount,
-    gir, bogeyOn, scramble, fwKeep, bunker,
-    choro, three: putts >= 3, sandSave: bunker && score <= hole.par
+    gir, bogeyOn, scramble, fwKeep, bunker, gsBunker,
+    choro, three: putts >= 3, sandSave: gsBunker && score <= hole.par
   };
 }
 
@@ -77,8 +96,8 @@ export function computeKPIs(holes) {
   const girN = HS.filter((h) => h.gir).length;
   const nonGir = HS.filter((h) => !h.gir);
   const scrambled = nonGir.filter((h) => h.scramble).length;
-  const bunkerHoles = HS.filter((h) => h.bunker);
-  const sandSaved = bunkerHoles.filter((h) => h.sandSave).length;
+  const gsBunkerHoles = HS.filter((h) => h.gsBunker);
+  const sandSaved = gsBunkerHoles.filter((h) => h.sandSave).length;
   const threePutts = HS.filter((h) => h.three).length;
   const bogeyOnN = HS.filter((h) => h.bogeyOn).length;
   const putts = HS.reduce((a, h) => a + h.putts, 0);
@@ -92,7 +111,7 @@ export function computeKPIs(holes) {
     { id: "gir", label: `パーオン ${girN}/${HS.length}`, value: Math.round(girN / HS.length * 100), unit: "%" },
     { id: "bogeyOn", label: `ボギーオン ${bogeyOnN}/${HS.length}`, value: Math.round(bogeyOnN / HS.length * 100), unit: "%" },
     { id: "scramble", label: "寄せワン", value: `${scrambled}/${nonGir.length}`, unit: "" },
-    { id: "sandSave", label: "サンドセーブ", value: bunkerHoles.length ? `${sandSaved}/${bunkerHoles.length}` : "-", unit: "" },
+    { id: "sandSave", label: "サンドセーブ", value: gsBunkerHoles.length ? `${sandSaved}/${gsBunkerHoles.length}` : "-", unit: "" },
     { id: "threePutts", label: "3パット", value: threePutts, unit: "回" },
     { id: "penalty", label: "ペナルティ", value: obTotal, unit: "打" },
     { id: "niceRate", label: "ナイス率(ショット)", value: attempts ? Math.round(niceN / attempts * 100) : 0, unit: "%" }
@@ -306,10 +325,16 @@ export function computeReview(round) {
   };
 }
 
-/* ---------- ダッシュボード用の一括計算 ---------- */
-export function dashboardSummary(allRounds, courses) {
+/* ---------- ダッシュボード用の一括計算 ----------
+   6-1: 既定では18ホール完了したラウンドのみを対象にする(9ホールラウンドが
+   18ホールラウンドと同じ重みで平均・ベスト・推移に混ざるのを防ぐ)。
+   バッチ8の絞り込み行「ラウンド:18Hのみ/すべて」から opts.roundFilter="all" を
+   渡すと9ホールラウンドも含める。 */
+export function dashboardSummary(allRounds, courses, opts) {
+  const roundFilter = (opts && opts.roundFilter) || "18";
   const rounds = allRounds
     .filter((r) => r.complete)
+    .filter((r) => roundFilter === "all" || playedHoleCount(r) === 18)
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 
@@ -318,8 +343,8 @@ export function dashboardSummary(allRounds, courses) {
     const t = roundTotals(holes);
     const nonGir = t.HS.filter((h) => !h.gir);
     const scrambled = nonGir.filter((h) => h.scramble).length;
-    const bunkerHoles = t.HS.filter((h) => h.bunker);
-    const sandSaved = bunkerHoles.filter((h) => h.sandSave).length;
+    const gsBunkerHoles = t.HS.filter((h) => h.gsBunker);
+    const sandSaved = gsBunkerHoles.filter((h) => h.sandSave).length;
     const fwHoles = t.HS.filter((h) => h.fwKeep !== null);
     const fwKept = fwHoles.filter((h) => h.fwKeep).length;
     const girN = t.HS.filter((h) => h.gir).length;
@@ -334,7 +359,7 @@ export function dashboardSummary(allRounds, courses) {
       girPct: girN / t.HS.length * 100,
       bogeyOnPct: bogeyOnN / t.HS.length * 100,
       scrPct: nonGir.length ? scrambled / nonGir.length * 100 : null,
-      sandPct: bunkerHoles.length ? sandSaved / bunkerHoles.length * 100 : null,
+      sandPct: gsBunkerHoles.length ? sandSaved / gsBunkerHoles.length * 100 : null,
       three: threePutts, pen: t.pen,
       nicePct: attempts ? niceN / attempts * 100 : null,
       shots: allShots
