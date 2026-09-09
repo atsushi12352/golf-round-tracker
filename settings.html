@@ -30,7 +30,13 @@
     </div>
 
     <div class="card">
-      <h2>コース管理</h2>
+      <h2>ゴルフ場登録<small>9ホールのコースを組み合わせて18ホールを表現します</small></h2>
+      <div id="facilityList"></div>
+      <button class="btn ghost block" id="newFacilityBtn" type="button" style="margin-top:10px;">ゴルフ場を新規登録</button>
+    </div>
+
+    <div class="card">
+      <h2>コース管理<small>旧形式(18ホール固定)。ラウンド開始・分析は上のゴルフ場登録を使います</small></h2>
       <div class="round-list" id="courseList"></div>
       <div class="hm-note" style="margin-top:8px;">ラウンドの記録が残っているコースは削除できません。</div>
     </div>
@@ -53,6 +59,38 @@
     <div class="sheet-btns">
       <button class="sheet-btn danger" id="courseDeleteConfirmYes">削除する</button>
       <button class="sheet-btn ghost" id="courseDeleteConfirmNo">戻る</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="facilityNewOverlay">
+  <div class="sheet">
+    <h2>ゴルフ場を登録</h2>
+    <div id="facilityFormContainer"></div>
+  </div>
+</div>
+
+<div class="overlay" id="loopHolesOverlay">
+  <div class="sheet">
+    <h2 id="loopHolesTitle">コースのPar</h2>
+    <div class="loop-hole-list" id="loopHoleList"></div>
+    <div class="sheet-btns">
+      <button class="sheet-btn ghost" id="loopHolesCloseBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="loopParEditOverlay">
+  <div class="sheet">
+    <h2 id="loopParEditTitle">Parを変更</h2>
+    <div class="chip-grid" id="loopParEditChips" style="justify-content:center; margin-bottom:16px;">
+      <button class="chip-toggle" type="button" data-par="3">Par3</button>
+      <button class="chip-toggle" type="button" data-par="4">Par4</button>
+      <button class="chip-toggle" type="button" data-par="5">Par5</button>
+    </div>
+    <div class="sheet-btns">
+      <button class="sheet-btn primary" id="loopParEditApply">変更する</button>
+      <button class="sheet-btn ghost" id="loopParEditCancel">やめる</button>
     </div>
   </div>
 </div>

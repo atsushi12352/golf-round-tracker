@@ -3,7 +3,7 @@ import { DEFAULT_CLUBS, DEFAULT_KPIS } from "./clubs.js";
 import { PRESET_COURSES } from "./presetCourses.js";
 
 const DB_NAME = "golf-log";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const SETTINGS_ID = "main";
 
 let dbPromise = null;
@@ -22,6 +22,13 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains("rounds")) {
         db.createObjectStore("rounds", { keyPath: "id" });
+      }
+      // バッチ13: ゴルフ場(Facility)+9ホールコース(Loop)。DB_VERSION 1→2で追加。
+      if (!db.objectStoreNames.contains("facilities")) {
+        db.createObjectStore("facilities", { keyPath: "id" });
+      }
+      if (!db.objectStoreNames.contains("loops")) {
+        db.createObjectStore("loops", { keyPath: "id" });
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -108,7 +115,9 @@ export async function getCourses() {
 }
 
 export async function getCourse(id) {
-  return dbGet("courses", id);
+  // バッチ13: ゴルフ場登録(9ホール単体・facilityId経由)のラウンドはcourseIdを
+  // 持たないことがある(IndexedDBのget()はキーにundefinedを渡すと例外になるため防御する)。
+  return id ? dbGet("courses", id) : undefined;
 }
 
 export async function saveCourse(course) {
@@ -119,15 +128,86 @@ export async function deleteCourse(id) {
   return dbDelete("courses", id);
 }
 
+/* ---------- バッチ13: ゴルフ場(Facility) / 9ホールコース(Loop) ----------
+   日本のゴルフ場は「9ホールのコースが3つ以上あり、その組み合わせで18ホールを回る」
+   構成が多いため、旧来の「Course=18ホール固定」を Facility(ゴルフ場)+Loop(9ホール)
+   に一般化する。既存の Course store は削除せず、そのまま残す(5-2のコース付け替え・
+   ダッシュボードのコース別集計など、この段階では変更しない分析画面が引き続き使うため)。 */
+export async function getFacilities() {
+  await ensureFacilitiesFromCourses();
+  return dbGetAll("facilities");
+}
+export async function getFacility(id) {
+  return id ? dbGet("facilities", id) : undefined;
+}
+export async function saveFacility(f) {
+  return dbPut("facilities", f);
+}
+
+export async function getLoops() {
+  return dbGetAll("loops");
+}
+export async function getLoop(id) {
+  return id ? dbGet("loops", id) : undefined;
+}
+export async function saveLoop(l) {
+  return dbPut("loops", l);
+}
+export async function loopsForFacility(facilityId) {
+  const loops = await getLoops();
+  return loops.filter((l) => l.facilityId === facilityId);
+}
+
+// 既存の Course{id,name,pars[18]} を Facility+Loop(OUT/IN)に変換する(非破壊・冪等)。
+// Course自体は削除しない。同じFacility idが既にあれば何もしない(ensurePresetCoursesと同じ形)。
+export async function ensureFacilitiesFromCourses() {
+  await ensurePresetCourses(); // プリセットコース(3-1)がまだ無ければ先に用意してから変換する
+  const [courses, facilities] = await Promise.all([dbGetAll("courses"), dbGetAll("facilities")]);
+  const existingIds = new Set(facilities.map((f) => f.id));
+  for (const course of courses) {
+    const facId = "fac-" + course.id;
+    if (existingIds.has(facId)) continue;
+    await dbPut("facilities", { id: facId, name: course.name });
+    await dbPut("loops", { id: course.id + "-out", facilityId: facId, name: "OUT", pars: course.pars.slice(0, 9) });
+    await dbPut("loops", { id: course.id + "-in", facilityId: facId, name: "IN", pars: course.pars.slice(9, 18) });
+  }
+}
+
+// 既存Roundに facilityId/frontLoopId/backLoopId、各holeに loopId/loopHole を補完する
+// (非破壊: courseId/startは削除しない。冪等: 既にfacilityIdがあれば何もしない)。
+// 「摩周コース3番」はどの順番で回っても同じ集計対象になるよう、hole.loopId/loopHoleは
+// そのホールの実ホール番号(1-9→OUTループ, 10-18→INループ)だけから決まる
+// (round.start / frontLoopIdには依存しない)。
+export async function ensureRoundFacilityFields(round) {
+  if (round.facilityId || !round.courseId) return round;
+  const outId = round.courseId + "-out";
+  const inId = round.courseId + "-in";
+  round.facilityId = "fac-" + round.courseId;
+  round.frontLoopId = round.start === "IN" ? inId : outId;
+  round.backLoopId = round.start === "IN" ? outId : inId;
+  (round.holes || []).forEach((h) => {
+    if (h.loopId && h.loopHole) return;
+    h.loopId = h.number <= 9 ? outId : inId;
+    h.loopHole = h.number <= 9 ? h.number : h.number - 9;
+  });
+  await dbPut("rounds", round);
+  return round;
+}
+
 /* ---------- rounds ---------- */
 export async function getRounds() {
+  await ensureFacilitiesFromCourses();
   const rounds = await dbGetAll("rounds");
+  for (const r of rounds) await ensureRoundFacilityFields(r);
   rounds.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
   return rounds;
 }
 
 export async function getRound(id) {
-  return dbGet("rounds", id);
+  const round = await dbGet("rounds", id);
+  if (!round) return round;
+  await ensureFacilitiesFromCourses();
+  return ensureRoundFacilityFields(round);
 }
 
 export async function saveRound(round) {
@@ -138,23 +218,35 @@ export async function deleteRound(id) {
   return dbDelete("rounds", id);
 }
 
-/* ---------- backup用: 全データ入出力 ---------- */
+/* ---------- backup用: 全データ入出力 ----------
+   バッチ13: facilities/loopsもバックアップ対象に追加(version 2)。
+   旧バージョン(facilities/loopsを含まない version 1 のバックアップ)を読み込んだ
+   場合は、インポート後の初回アクセス時に ensureFacilitiesFromCourses が
+   courses から再生成するので非破壊的に復元できる。 */
 export async function exportAllData() {
-  const [settings, courses, rounds] = await Promise.all([
-    getSettings(), getCourses(), getRounds()
+  const [settings, courses, rounds, facilities, loops] = await Promise.all([
+    getSettings(), getCourses(), getRounds(), getFacilities(), getLoops()
   ]);
-  return { version: 1, exportedAt: new Date().toISOString(), settings, courses, rounds };
+  return { version: 2, exportedAt: new Date().toISOString(), settings, courses, rounds, facilities, loops };
 }
 
 export async function importAllData(data) {
   await dbClear("settings");
   await dbClear("courses");
   await dbClear("rounds");
+  await dbClear("facilities");
+  await dbClear("loops");
   if (data.settings) await dbPut("settings", { ...data.settings, id: SETTINGS_ID });
   if (Array.isArray(data.courses)) {
     for (const c of data.courses) await dbPut("courses", c);
   }
   if (Array.isArray(data.rounds)) {
     for (const r of data.rounds) await dbPut("rounds", r);
+  }
+  if (Array.isArray(data.facilities)) {
+    for (const f of data.facilities) await dbPut("facilities", f);
+  }
+  if (Array.isArray(data.loops)) {
+    for (const l of data.loops) await dbPut("loops", l);
   }
 }

@@ -624,3 +624,190 @@
 - ホーム画面のラウンド一覧からのスコアカード直接導線(任意項目、上記参照)。
 
 ---
+
+## バッチ13:ゴルフ場と9ホールコースのデータモデル(完了)
+
+最もリスクの高いバッチ。着手前に指示書のFacility/Loop/Round/Holeの型定義・
+マイグレーション規則・「判断に迷ったとき」節を読み直し、以下の方針で実施した。
+
+### データモデルとマイグレーション(`js/db.js`)
+
+- IndexedDBに `facilities`(ゴルフ場)・`loops`(9ホールコース)の2ストアを追加
+  (`DB_VERSION` 1→2、`onupgradeneeded`で追加作成のみ・既存ストアは無変更)。
+- `ensureFacilitiesFromCourses()`: 既存`courses`ストアの各Courseを
+  `{id:"fac-"+course.id, name}`のFacilityと、`course.id+"-out"`/`"-in"`の
+  2つのLoop(pars.slice(0,9)/slice(9,18))に変換して`facilities`/`loops`に追加する。
+  同名Facility idが既にあれば何もしない(`ensurePresetCourses`と同じ冪等パターン)。
+  **Courseストア自体は削除・変更しない**(指示書どおり)。
+- `ensureRoundFacilityFields(round)`: 既存Roundに`facilityId`/`frontLoopId`/
+  `backLoopId`、各holeに`loopId`/`loopHole`を補完する。`round.facilityId`が
+  既にあれば何もしない(冪等)。`courseId`/`start`は削除しない(非破壊)。
+  hole.loopId/loopHoleは**そのホールの実ホール番号だけ**から決まる
+  (`number<=9`→`courseId+"-out"`の`number`番、`number>=10`→`"-in"`の
+  `number-9`番。`round.start`やfrontLoopIdには依存しない)。指示書の
+  マイグレーション規則をそのまま実装した。
+- `getFacilities`/`getRounds`/`getRound`は上記2つの補完処理を呼んでから返す
+  (`getCourses`が`ensurePresetCourses`を呼ぶのと同じパターン)。
+- `getCourse(id)`に`id`がfalsyなら`undefined`を返す防御を追加(下記「判断に
+  迷った点」参照)。
+- `exportAllData`/`importAllData`(バックアップ)に`facilities`/`loops`を追加
+  (version 2)。旧バックアップ(facilities/loops無し)を読み込んでも、
+  インポート後の初回アクセスで`ensureFacilitiesFromCourses`が`courses`から
+  再生成するので非破壊的に復元できる。
+
+### 新規登録UIとラウンド開始画面
+
+- `js/facilityForm.js`(新規・共有モジュール): ゴルフ場名+9ホールコース
+  (コース名+9マスのPar、タップで3/4/5を巡回)を1つずつ追加(最大6つ)、
+  または「18ホールとして登録」でOUT/IN固定2コースを一括作成、のどちらかを
+  選べる登録フォーム。`settings.html`(ゴルフ場登録カード)・
+  `round-start.html`(その場で新規登録)の両方から使い、ロジックの二重管理を避けた。
+- `round-start.html`/`js/roundStart.js`を全面書き換え。旧来の「コース(18ホール)
+  chip選択+新規コース名入力+OUT/INスタート」を「ゴルフ場を選ぶ(chip選択+
+  新規登録ボタン)→前半のコースを選ぶ→後半のコースを選ぶ→ティー」に置き換えた。
+  指示書どおり**OUT/INスタート選択UIは廃止**。2コースしかないゴルフ場では
+  前半=OUT・後半=IN(相当)を既定選択、1コースのみのゴルフ場では前半=後半=
+  そのコースを既定選択、3コース以上は既定を選ばず必ず明示選択させる。
+  同じコースを前半・後半の両方に選ぶことも許可(制限なし)。
+  ラウンド開始時、`holes[0..8]`=前半Loopの1-9番(`loopId`/`loopHole`/`par`を
+  そのLoopから設定)、`holes[9..17]`=後半Loop、で18ホール分のHoleを構築する。
+- `settings.html`に「ゴルフ場登録」カードを新設(既存の「コース管理」カードは
+  無変更のまま残す。判断に迷った点参照)。登録済みFacility一覧+各Loopの
+  Par合計を表示し、「Par修正」から9ホール一覧→該当ホールをタップ→3/4/5を
+  選んで「変更する」で確定、という**既存のPar修正と同じ「選ぶ→確定する」
+  2段階の方式**を再利用したUIでLoopのParを後から直せるようにした。
+
+### 分析画面(review/dashboard/home/settings)との互換性
+
+- 指示書の「この段階では分析画面を変更しない」に従い、`js/review.js`・
+  `js/dashboard.js`・`js/home.js`・既存の「コース管理」機能は**一切変更していない**
+  (courseIdベースの集計・コース付け替え・Par変更→コース反映確認などすべて
+  従来のまま)。
+- そのままだと、新モデルのみで作られたラウンド(courseIdを持たない)が
+  `review.js`の`getCourse(round.courseId)`(`Promise.all`内で無条件呼び出し)を
+  経由したときに、IndexedDBの`get()`に`undefined`キーを渡して例外になることが
+  分かったため、`getCourse(id)`に`id`がfalsyなら即`undefined`を返す1行の防御を
+  追加した(下記「判断に迷った点」)。
+- `js/roundStart.js`は、選んだゴルフ場が**旧Courseから移行したFacility
+  (id が `fac-`で始まる)で、かつ前半・後半がちょうどそのOUT/INのペア**の
+  ときだけ、`round.courseId`/`round.start`も一緒に埋めて保存する
+  (それ以外の新規ゴルフ場・3コース以上の組み合わせでは`courseId`を持たせない
+  =持たせようがない)。これにより、従来どおりの2ループ運用(プリセット3コース・
+  18ホールとして登録したゴルフ場)はreview/dashboardの`courseId`ベース集計に
+  そのまま乗り、恵庭CCのような3ループ以上のゴルフ場のラウンドだけが
+  「コース不明」表示になる(バッチ14で解消予定、これは意図どおりの段階的対応)。
+- `js/holeInput.js`の「次のホールへ」保存処理が
+  `round.holes[holeNum-1] = {number, par, shots}`と**新しいオブジェクトで
+  丸ごと置き換えていた**ため、このままだと保存のたびに`loopId`/`loopHole`が
+  消えてしまうバグを発見・修正した(`{...holeData, number, par, shots}`で
+  既存フィールドを保ったまま上書きする形に変更)。これは新モデルの正しさに
+  直結する必須修正であり、指示範囲(バッチ13の完了条件である「新モデルで
+  記録・保存できること」)そのもの。
+
+### 動作確認
+
+`.claude/launch.json`のポートを8808→8809に上げてから`preview_start`。
+
+1. `round-start.html`を開き、プリセット3コース由来の3ゴルフ場が
+   chip選択肢に出ることを確認(`getFacilities()`が`ensurePresetCourses`→
+   `ensureFacilitiesFromCourses`を正しく連鎖呼び出しし、フレッシュなDBでも
+   プリセットFacilityが最初から出ることを確認)。
+2. 「札幌リージェントGC 新コース」を選択→前半=OUT・後半=INが既定選択される
+   ことを確認→ティー選択→ラウンド開始→`hole.html`で`facilityId`/
+   `frontLoopId`/`backLoopId`/`courseId`/`start`、各holeの`loopId`/`loopHole`/
+   `par`がすべて期待どおりであることをコンソールで確認。
+3. 実際に1番ホールを入力(9マスグリッドでティーショット→PTでカップイン)→
+   「次のホールへ」→保存後のIndexedDBで1番ホールの`loopId`/`loopHole`が
+   **消えずに残っている**ことを確認(上記バグ修正の検証)。
+4. 残り17ホールをDB直接シードで完了させ、`review.html`・`dashboard.html`が
+   コンソールエラーなく表示されることを確認。
+5. `round-start.html`から「ゴルフ場を新規登録」→「9ホールずつ追加」モードで
+   「恵庭カントリー倶楽部」+「摩周コース」(Par37に編集)を作成→
+   「9ホールのコースを追加」を2回押して「阿寒コース」「支笏コース」を追加
+   (3ループ)→登録→一覧に反映されることを確認。この3ループのゴルフ場を
+   選択したときは前半・後半とも**既定選択なし**(明示選択が必要)であることを確認。
+6. 摩周→阿寒でラウンド開始→`facilityId`はUUID(`fac-`始まりではない)、
+   `courseId`は**設定されない**(旧Courseに対応しないため)ことを確認。
+   各holeの`loopId`が実際に選んだLoopの本物のidになっており、`loopHole`が
+   1-9で正しく振られていることを確認(この設計により、同じLoopを前半で
+   回っても後半で回っても`loopId`は同じになり、バッチ14の集計統合の前提が
+   満たされる)。
+7. このラウンドをDBシードで完了させ、`review.html`・`dashboard.html`・
+   `scorecard.html`・`index.html`・`settings.html`のすべてで
+   **コンソールエラーが出ないこと**を確認(`courseId`が無いラウンドの
+   グレースフルデグレード)。`index.html`の一覧には「コース不明」と表示され、
+   `review.html`の「⋯」からのコース付け替え機能も(旧Course一覧からの選択として)
+   クラッシュせず動作することを確認。
+8. `settings.html`の「ゴルフ場登録」カードで、摩周コースの3番のParを
+   「Par修正」→9ホール一覧→3番をタップ→3を選択→「変更する」で36→36
+   (5+4+3+4×6)に変更し、IndexedDBに反映・冪等に再表示されることを確認。
+9. **既存データ互換性(最重要)**: `courseId`/`start`のみを持つ旧形式の
+   完了ラウンド(`facilityId`等を一切持たない生データ)をIndexedDBに直接
+   投入し、`getRound()`を2回呼んで(a)1回目で`facilityId`
+   (`fac-preset-sapporo-regent-old`)・`frontLoopId`/`backLoopId`・
+   各holeの`loopId`/`loopHole`が正しく補完され、`courseId`/`start`は
+   削除されずに残ること、(b)2回目に呼んでも同じ結果になること(冪等)を
+   確認。その後`review.html`・`scorecard.html`をコンソールエラーなく
+   開けることを確認。
+10. バックアップのエクスポート→インポートの往復テスト: `exportAllData()`
+    (version 2、facilities 4件・loops 9件・rounds 3件)→`importAllData()`→
+    再度`getFacilities()`/`getLoops()`/`getRounds()`で同じ件数・内容が
+    復元されることを確認。
+11. Service Workerを再登録し、`golf-log-v8`に`js/facilityForm.js`を含む
+    27ファイルすべてがプリキャッシュされることを確認
+    (`CACHE_VERSION`をv7→v8、`PRECACHE_URLS`に1件追記)。
+12. コンソールエラーなし(全画面・全シナリオ)。
+
+### 判断に迷った点
+
+- **`courseId`/`start`互換フィールドを新規ラウンドにも埋めるかどうか**:
+  指示書は「既存の courseId/start フィールドは削除せず残す」と
+  マイグレーション(既存ラウンドの補完)についてのみ明記しており、
+  新規ラウンドについては触れていなかった。一方で指示書は「この段階では
+  分析画面を変更しない」とも明記しており、両立させるには新規ラウンドも
+  可能な範囲でcourseId互換を持たせる必要があると判断した。「旧Courseに
+  1:1対応するFacility(プリセット3コール・『18ホールとして登録』した
+  ゴルフ場)で、前半・後半がちょうどそのOUT/INペア」のときだけcourseId/startを
+  補うことにし、3ループ以上や任意組み合わせ(恵庭CCのようなケース)は
+  courseIdを持たせようがないため持たせない、という設計にした。これは
+  「推測で仕様を変える」ではなく、指示書の2つの明示要求(新モデルの
+  柔軟性を保つ/分析画面は変更しない)を両立させる必然的な帰結と判断した。
+- **`getCourse(id)`のnull防御**: 上記の結果、courseIdを持たないラウンドが
+  `review.js`のPromise.all内で無条件に`getCourse(round.courseId)`を呼ぶため、
+  IndexedDBの`get(undefined)`が例外を投げてreview.html全体がクラッシュする
+  ことが動作確認で判明した。`review.js`自体(分析画面)は変更せず、
+  `db.js`の`getCourse`に1行のnullガードを追加するだけで解決したため、
+  「分析画面を変更しない」の趣旨(表示ロジック・集計ロジックを変えない)は
+  維持しつつ、確認された実クラッシュを防いだ。これは仕様の解釈変更ではなく、
+  指示書が想定していなかった組み合わせ(新モデルのみのラウンド×
+  変更しない分析画面)から生じる自明なヌルガードの追加と判断した。
+- **`holeInput.js`のホールオブジェクト置き換えバグ**: 動作確認の過程で
+  発見した実バグ(次ホール保存のたびにloopId/loopHoleが消える)。
+  「新モデルで記録・保存できること」というバッチ13の完了条件に直結するため、
+  スコープ内の必須修正として対応した。
+- **ホーム画面(`index.html`)からのゴルフ場名表示**: `js/home.js`は
+  「分析画面」の定義に厳密には含まれないが、指示書に明記が無く、
+  変更対象を広げるリスクを避けるため触れなかった。facilityId onlyの
+  ラウンドは「コース不明」と表示される(バッチ14で解消予定)。
+- **設定画面の「コース管理」と「ゴルフ場登録」の並存**: 新設した
+  「ゴルフ場登録」カードとは別に、既存の「コース管理」(旧Course一覧・
+  削除機能)カードをそのまま残した。分析画面(dashboard/review)が
+  courseIdベースの集計・コース付け替えに`courses`ストアを使い続けるため、
+  この管理UIを削除すると分析画面側の導線が失われてしまう。統合はバッチ14で
+  分析画面をLoop単位に切り替える際に検討するのが適切と判断した。
+- **ラウンド中(hole.html)のPar変更をLoopに同期するか**: 既存の挙動
+  (Par変更時に元のCourseにも反映するか確認)は`courseId`がある場合のみ
+  従来どおり動作し、facilityId onlyのラウンドでは同期をスキップする
+  (静かなno-op、クラッシュなし)。Loop側への同期は指示書の「Parは後から
+  でも直せる(既存の仕組みを流用)」を設定画面のLoop編集UIで満たしている
+  と判断し、hole.html側の拡張は行わなかった(スコープ超過を避けた)。
+
+### スキップした項目
+
+- ゴルフ場(Facility)・9ホールコース(Loop)の削除機能: 指示書に明記が無く、
+  既存の「コース管理」の削除機能(未使用コースのみ削除可)とは削除条件の
+  再設計が必要になるため、今回は追加しなかった。
+- `index.html`のラウンド一覧でのゴルフ場名表示(現状「コース不明」表示、
+  上記参照)。
+
+---

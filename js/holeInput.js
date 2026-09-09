@@ -403,7 +403,9 @@ import { scorecardBodyHTML, scorecardTotalRowHTML, scorecardLegendHTML } from ".
   }
 
   $("nextHole").addEventListener("click", async () => {
-    round.holes[holeNum - 1] = { number: holeData.number, par, shots: shots.slice() };
+    // バッチ13: loopId/loopHole(Facility/Loopモデル)等、number/par/shots以外の既存フィールドを
+    // 上書きで消さないようスプレッドしてから保存する。
+    round.holes[holeNum - 1] = { ...holeData, number: holeData.number, par, shots: shots.slice() };
     round.playedHoles = Math.max(playedHoleCount(round), holeNum);
     if (holeNum >= 18) {
       round.complete = true;

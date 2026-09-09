@@ -476,6 +476,43 @@ header.hole-header {
 .chip-toggle.selected { background: var(--green); border-color: var(--green); color: #fff; }
 .chip-toggle.locked { opacity: .6; }
 
+/* ---- バッチ13: ゴルフ場(Facility)+9ホールコース(Loop)登録フォーム ---- */
+.facility-loop-block {
+  border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin: 10px 0;
+  background: var(--bg);
+}
+.par-pick-grid { display: grid; grid-template-columns: repeat(9, 1fr); gap: 4px; margin-top: 8px; }
+.par-pick {
+  border: 1px solid var(--line); background: #fff; border-radius: 8px;
+  min-height: 40px; font-size: 14px; font-weight: 700; color: var(--ink);
+}
+.par-pick small { display: block; font-size: 9px; font-weight: 500; color: var(--muted); }
+.loop-remove-btn {
+  border: none; background: none; color: var(--danger); font-size: 12px; font-weight: 600;
+  margin-top: 8px; padding: 4px 0;
+}
+.facility-card { padding: 12px; }
+.facility-card .fname { font-size: 14px; font-weight: 700; }
+.facility-loop-row {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 0; border-top: 1px solid var(--line); margin-top: 8px;
+}
+.facility-loop-row .lname { font-size: 13px; font-weight: 600; }
+.facility-loop-row .lpar { font-size: 11px; color: var(--muted); }
+.facility-loop-row .lpar-edit {
+  border: 1px solid var(--line); background: #fff; color: var(--sub);
+  border-radius: 8px; font-size: 12px; font-weight: 600; padding: 6px 10px;
+}
+.loop-hole-list { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.loop-hole-list .lh-item {
+  border: 1px solid var(--line); border-radius: 10px; padding: 8px; text-align: center; background: var(--bg);
+}
+.loop-hole-list .lh-item .lh-no { font-size: 10px; color: var(--muted); }
+.loop-hole-list .lh-item .lh-par-btn {
+  border: none; background: none; color: var(--ink); font-size: 16px; font-weight: 700; font: inherit;
+  text-decoration: underline dotted; text-underline-offset: 2px; padding: 2px 0;
+}
+
 .club-toggle-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
 .club-toggle {
   min-height: 40px; border-radius: 10px; border: 1px solid var(--line); background: #fff;

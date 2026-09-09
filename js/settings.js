@@ -1,8 +1,9 @@
-import { getSettings, saveSettings, getCourses, getRounds, deleteCourse } from "./db.js";
+import { getSettings, saveSettings, getCourses, getRounds, deleteCourse, getFacilities, getLoops, saveLoop } from "./db.js";
 import { CLUB_MASTER } from "./clubs.js";
 import { PRESET_COURSES } from "./presetCourses.js";
 import { exportBackup, importBackupFile, getLastBackupAt, daysSinceLastBackup, STALE_DAYS } from "./backup.js";
 import { KPI_CATALOG, KPI_GROUPS } from "./stats.js";
+import { renderFacilityForm } from "./facilityForm.js";
 
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -125,6 +126,92 @@ import { KPI_CATALOG, KPI_GROUPS } from "./stats.js";
     pendingDeleteCourse = null;
     $("courseDeleteConfirmOverlay").classList.remove("show");
     await renderCourses();
+  });
+
+  /* ---- バッチ13: ゴルフ場(Facility)+9ホールコース(Loop) ---- */
+  const facilityList = $("facilityList");
+  async function renderFacilities() {
+    const [facilities, loops] = await Promise.all([getFacilities(), getLoops()]);
+    if (facilities.length === 0) {
+      facilityList.innerHTML = '<div class="empty-state">登録されているゴルフ場がありません。</div>';
+      return;
+    }
+    facilityList.innerHTML = "";
+    facilities.forEach((f) => {
+      const card = document.createElement("div");
+      card.className = "card facility-card";
+      const fLoops = loops.filter((l) => l.facilityId === f.id);
+      card.innerHTML = `<div class="fname">${f.name}</div>`;
+      fLoops.forEach((loop) => {
+        const total = loop.pars.reduce((a, b) => a + b, 0);
+        const row = document.createElement("div");
+        row.className = "facility-loop-row";
+        row.innerHTML = `<div><div class="lname">${loop.name}</div><div class="lpar">Par${total}(9ホール)</div></div>`;
+        const editBtn = document.createElement("button");
+        editBtn.type = "button";
+        editBtn.className = "lpar-edit";
+        editBtn.textContent = "Par修正";
+        editBtn.addEventListener("click", () => openLoopHoles(loop));
+        row.appendChild(editBtn);
+        card.appendChild(row);
+      });
+      facilityList.appendChild(card);
+    });
+  }
+  await renderFacilities();
+
+  $("newFacilityBtn").addEventListener("click", () => {
+    renderFacilityForm($("facilityFormContainer"), async () => {
+      $("facilityNewOverlay").classList.remove("show");
+      await renderFacilities();
+    }, () => $("facilityNewOverlay").classList.remove("show"));
+    $("facilityNewOverlay").classList.add("show");
+  });
+
+  // Loopの9ホール一覧(タップでPar修正。既存のPar修正と同じ「選ぶ→確定する」方式)
+  let editingLoop = null, editingHoleIdx = null, loopParSelected = null;
+  function openLoopHoles(loop) {
+    editingLoop = loop;
+    $("loopHolesTitle").textContent = `${loop.name}のPar`;
+    const list = $("loopHoleList");
+    list.innerHTML = "";
+    loop.pars.forEach((par, i) => {
+      const item = document.createElement("div");
+      item.className = "lh-item";
+      item.innerHTML = `<div class="lh-no">${i + 1}番</div><button type="button" class="lh-par-btn" data-i="${i}">Par ${par}</button>`;
+      list.appendChild(item);
+    });
+    Array.prototype.forEach.call(list.querySelectorAll(".lh-par-btn"), (btn) => {
+      btn.addEventListener("click", () => {
+        editingHoleIdx = +btn.dataset.i;
+        $("loopParEditTitle").textContent = `${loop.name} ${editingHoleIdx + 1}番のParを変更`;
+        renderLoopParEditChips(loop.pars[editingHoleIdx]);
+        $("loopParEditOverlay").classList.add("show");
+      });
+    });
+    $("loopHolesOverlay").classList.add("show");
+  }
+  $("loopHolesCloseBtn").addEventListener("click", () => $("loopHolesOverlay").classList.remove("show"));
+
+  function renderLoopParEditChips(current) {
+    loopParSelected = current;
+    Array.prototype.forEach.call(document.querySelectorAll("#loopParEditChips .chip-toggle"), (b) => {
+      b.classList.toggle("selected", +b.dataset.par === current);
+    });
+  }
+  Array.prototype.forEach.call(document.querySelectorAll("#loopParEditChips .chip-toggle"), (b) => {
+    b.addEventListener("click", () => renderLoopParEditChips(+b.dataset.par));
+  });
+  $("loopParEditCancel").addEventListener("click", () => $("loopParEditOverlay").classList.remove("show"));
+  $("loopParEditApply").addEventListener("click", async () => {
+    $("loopParEditOverlay").classList.remove("show");
+    if (editingLoop && editingHoleIdx !== null && loopParSelected !== editingLoop.pars[editingHoleIdx]) {
+      editingLoop.pars[editingHoleIdx] = loopParSelected;
+      await saveLoop(editingLoop);
+      openLoopHoles(editingLoop);
+      await renderFacilities();
+    }
+    editingHoleIdx = null;
   });
 
   function renderBackupStatus() {

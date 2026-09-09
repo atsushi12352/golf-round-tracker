@@ -18,12 +18,16 @@
 
   <main>
     <div class="card">
-      <h2>コース</h2>
-      <div class="chip-grid" id="courseChips" style="margin-bottom:10px;"></div>
-      <div class="field">
-        <label>新規コース名を入力</label>
-        <input type="text" id="newCourseName" placeholder="例:○○カントリークラブ">
-      </div>
+      <h2>ゴルフ場</h2>
+      <div class="chip-grid" id="facilityChips" style="margin-bottom:10px;"></div>
+      <button class="btn ghost block" id="newFacilityBtn" type="button">ゴルフ場を新規登録</button>
+    </div>
+
+    <div class="card" id="loopCard" style="display:none;">
+      <h2>前半のコース</h2>
+      <div class="chip-grid" id="frontLoopChips" style="margin-bottom:14px;"></div>
+      <h2>後半のコース</h2>
+      <div class="chip-grid" id="backLoopChips"></div>
     </div>
 
     <div class="card">
@@ -35,14 +39,16 @@
       </div>
     </div>
 
-    <div class="card">
-      <h2>スタート</h2>
-      <div class="chip-grid" id="startChips"></div>
-    </div>
-
     <button class="btn primary block" id="startBtn" style="min-height:54px;">この内容でラウンド開始</button>
     <div class="empty-state" id="errMsg" style="display:none;color:var(--danger);"></div>
   </main>
+</div>
+
+<div class="overlay" id="facilityNewOverlay">
+  <div class="sheet">
+    <h2>ゴルフ場を登録</h2>
+    <div id="facilityFormContainer"></div>
+  </div>
 </div>
 
 <script type="module" src="js/roundStart.js"></script>
