@@ -124,7 +124,9 @@
       <h2>この案のポイント</h2>
       <div class="note">
         18ホールを<b>スクロールなしの1画面</b>に収めるため、前半9・後半9の2ブロックに分けた
-        4行構成(ホール番号 / Par / スコア / パット)。<br><br>
+        4行構成(ホール番号 / Par / 対Par / パット)。マス内は<b>Parに対する±</b>で、
+        ボギーなら +1、パーなら 0。実打数は各ブロックの見出し(47打 +11)と
+        下のトータルで確認できます。<br><br>
         ブロック見出しに<b>コース名</b>が入るので、恵庭カントリーのように9ホールずつ名前が
         ついたゴルフ場でも「摩周→阿寒で回った」ことがそのまま残ります。
         上の切替で「ラウンド中(12ホールまで)」の表示も確認できます。
@@ -166,9 +168,18 @@
 
   function buildBlock(loop, offset, played) {
     var pars = loop.pars;
+    var parSum9 = pars.reduce(function (a, b) { return a + b; }, 0);
+    // 見出しに実打数を出す(マス内は対Par表示にするため)
+    var raw = 0, rawAny = false, parPlayed = 0;
+    for (var k = 0; k < 9; k++) {
+      var ix = offset + k;
+      if (ix < played) { raw += ROUND.scores[ix]; parPlayed += pars[k]; rawAny = true; }
+    }
+    var rawDiff = raw - parPlayed;
     var html = '<div class="block">';
     html += '<div class="block-name">' + loop.name
-         + '<span>Par ' + pars.reduce(function (a, b) { return a + b; }, 0) + '</span></div>';
+         + '<span>' + (rawAny ? raw + '打 ' + (rawDiff >= 0 ? "+" : "") + rawDiff + ' / ' : "")
+         + 'Par ' + parSum9 + '</span></div>';
     html += '<table><thead><tr><th class="rowlbl">H</th>';
     for (var i = 0; i < 9; i++) html += '<th>' + (offset + i + 1) + '</th>';
     html += '<th class="tot">計</th></tr></thead><tbody>';
@@ -178,16 +189,18 @@
     for (i = 0; i < 9; i++) html += '<td>' + pars[i] + '</td>';
     html += '<td class="tot">' + pars.reduce(function (a, b) { return a + b; }, 0) + '</td></tr>';
 
-    // スコア
-    var sSum = 0, pSum = 0, any = false;
-    html += '<tr class="score"><td class="rowlbl">スコア</td>';
+    // 対Par(ボギーなら +1)
+    var sSum = 0, pSum = 0, any = false, diffSum = 0;
+    html += '<tr class="score"><td class="rowlbl">対Par</td>';
     for (i = 0; i < 9; i++) {
       var idx = offset + i;
       var s = idx < played ? ROUND.scores[idx] : null;
-      if (s != null) { sSum += s; any = true; }
-      html += '<td class="' + cls(s, pars[i]) + '">' + (s == null ? "-" : s) + '</td>';
+      var d = s == null ? null : s - pars[i];
+      if (s != null) { sSum += s; diffSum += d; any = true; }
+      html += '<td class="' + cls(s, pars[i]) + '">'
+           + (d == null ? "-" : (d > 0 ? "+" + d : d)) + '</td>';
     }
-    html += '<td class="tot">' + (any ? sSum : "-") + '</td></tr>';
+    html += '<td class="tot">' + (any ? (diffSum >= 0 ? "+" + diffSum : diffSum) : "-") + '</td></tr>';
 
     // パット
     html += '<tr class="putt"><td class="rowlbl">パット</td>';
