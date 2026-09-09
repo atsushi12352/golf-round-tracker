@@ -574,33 +574,36 @@ export function scoreDistribution(holes) {
   });
 }
 
-/* ---------- バッチ12: スコアカード ----------
+/* ---------- バッチ12(改訂): スコアカード ----------
    round.holes はプレー順(index 0 = 1打目を打ったホール)で格納されており、
    各要素の .number に実ホール番号(1-18)が入っている。前半9(index 0-8)・
    後半9(index 9-17)の2ブロックに分けて表示する。ブロック名は現時点では
-   OUT/IN固定(バッチ14でコース(9ホール)の実名に差し替える)。 */
-export function scorecardCellClass(score, par) {
-  if (score == null) return "s-none";
-  const d = score - par;
-  if (d <= -1) return "s-under";
-  if (d === 0) return "s-par";
-  if (d === 1) return "s-bogey";
+   OUT/IN固定(バッチ14でコース(9ホール)の実名に差し替える)。
+   改訂: マス内は実打数ではなく対Par(ボギー=+1)を表示する。実打数はブロック
+   見出し(例:「摩周コース 47打 +11 / Par 36」)に出す。 */
+export function scorecardCellClass(diff) {
+  if (diff == null) return "s-none";
+  if (diff <= -1) return "s-under";
+  if (diff === 0) return "s-par";
+  if (diff === 1) return "s-bogey";
   return "s-double";
 }
 
 function scorecardBlock(holes, played, offset, label) {
   const parTotal = holes.reduce((a, h) => a + h.par, 0);
-  let scoreSum = 0, puttSum = 0, any = false;
+  let scoreSum = 0, puttSum = 0, diffSum = 0, any = false;
   const cells = holes.map((h, i) => {
     const idx = offset + i;
-    if (idx >= played) return { number: h.number, par: h.par, score: null, putt: null };
+    if (idx >= played) return { number: h.number, par: h.par, diff: null, putt: null };
     const hs = holeStats(h);
-    scoreSum += hs.score; puttSum += hs.putts; any = true;
-    return { number: h.number, par: h.par, score: hs.score, putt: hs.putts };
+    const diff = hs.score - h.par;
+    scoreSum += hs.score; puttSum += hs.putts; diffSum += diff; any = true;
+    return { number: h.number, par: h.par, diff, putt: hs.putts };
   });
   return {
     label, cells, parTotal,
-    scoreTotal: any ? scoreSum : null,
+    rawTotal: any ? scoreSum : null,
+    diffTotal: any ? diffSum : null,
     puttTotal: any ? puttSum : null
   };
 }
@@ -620,7 +623,7 @@ export function computeScorecard(round, loopNames) {
   const backFallback = frontFallback === "OUT" ? "IN" : "OUT";
   const front = scorecardBlock(frontHoles, played, 0, labelFor(frontHoles, frontFallback));
   const back = scorecardBlock(backHoles, played, 9, labelFor(backHoles, backFallback));
-  const totalScore = played ? (front.scoreTotal || 0) + (back.scoreTotal || 0) : null;
+  const totalScore = played ? (front.rawTotal || 0) + (back.rawTotal || 0) : null;
   const totalPutts = played ? (front.puttTotal || 0) + (back.puttTotal || 0) : null;
   const parSoFar = holes.slice(0, played).reduce((a, h) => a + h.par, 0);
   const pen = played ? activeHoles(round).map(holeStats).reduce((a, h) => a + h.pen, 0) : null;

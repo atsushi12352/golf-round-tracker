@@ -6,7 +6,9 @@ export { computeScorecard };
 
 function blockHTML(b) {
   let html = '<div class="sc-block">';
-  html += `<div class="sc-block-name">${b.label}<span>Par ${b.parTotal}</span></div>`;
+  // 改訂: 見出しに実打数・対Parを出す(マス内は対Par表示になったため)。
+  const headExtra = b.rawTotal == null ? "" : `${b.rawTotal}打 ${b.diffTotal >= 0 ? "+" : ""}${b.diffTotal} / `;
+  html += `<div class="sc-block-name">${b.label}<span>${headExtra}Par ${b.parTotal}</span></div>`;
   html += '<table class="sc-table"><thead><tr><th class="rowlbl">H</th>';
   b.cells.forEach((c) => { html += `<th>${c.number}</th>`; });
   html += '<th class="tot">計</th></tr></thead><tbody>';
@@ -15,11 +17,12 @@ function blockHTML(b) {
   b.cells.forEach((c) => { html += `<td>${c.par}</td>`; });
   html += `<td class="tot">${b.parTotal}</td></tr>`;
 
-  html += '<tr class="score"><td class="rowlbl">スコア</td>';
+  html += '<tr class="score"><td class="rowlbl">対Par</td>';
   b.cells.forEach((c) => {
-    html += `<td class="${scorecardCellClass(c.score, c.par)}">${c.score == null ? "-" : c.score}</td>`;
+    const d = c.diff;
+    html += `<td class="${scorecardCellClass(d)}">${d == null ? "-" : (d > 0 ? "+" + d : d)}</td>`;
   });
-  html += `<td class="tot">${b.scoreTotal == null ? "-" : b.scoreTotal}</td></tr>`;
+  html += `<td class="tot">${b.diffTotal == null ? "-" : (b.diffTotal >= 0 ? "+" + b.diffTotal : b.diffTotal)}</td></tr>`;
 
   html += '<tr class="putt"><td class="rowlbl">パット</td>';
   b.cells.forEach((c) => { html += `<td>${c.putt == null ? "-" : c.putt}</td>`; });
