@@ -4,7 +4,7 @@
 // 【注意】html/css/jsのいずれかを変更・追加したら CACHE_VERSION を必ず連番で上げること。
 // 新規ファイルを追加したときは、下の PRECACHE_URLS にも忘れず追記すること
 // (js/ css/ 配下の実ファイル一覧と定期的に突き合わせて漏れがないか確認する)。
-const CACHE_VERSION = "golf-log-v6";
+const CACHE_VERSION = "golf-log-v7";
 const PRECACHE_URLS = [
   "./",
   "index.html",
@@ -13,6 +13,7 @@ const PRECACHE_URLS = [
   "review.html",
   "dashboard.html",
   "settings.html",
+  "scorecard.html",
   "manifest.webmanifest",
   "css/style.css",
   "js/db.js",
@@ -21,12 +22,14 @@ const PRECACHE_URLS = [
   "js/presetCourses.js",
   "js/backup.js",
   "js/sw-register.js",
+  "js/scorecardView.js",
   "js/home.js",
   "js/roundStart.js",
   "js/holeInput.js",
   "js/review.js",
   "js/dashboard.js",
   "js/settings.js",
+  "js/scorecard.js",
   "icons/icon-192.png",
   "icons/icon-512.png"
 ];

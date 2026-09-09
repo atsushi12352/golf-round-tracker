@@ -1,6 +1,7 @@
 import { getRound, saveRound, deleteRound, getSettings, getCourse, saveCourse } from "./db.js";
 import { PUTT_DISTS, LIES } from "./clubs.js";
-import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
+import { inferLie, inferPuttDist, playedHoleCount, activeHoles, roundTotals } from "./stats.js";
+import { scorecardBodyHTML, scorecardTotalRowHTML, scorecardLegendHTML } from "./scorecardView.js";
 
 (async function () {
   const params = new URLSearchParams(location.search);
@@ -35,6 +36,16 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
 
   $("holeNum").textContent = holeData.number;
   $("holePar").textContent = par;
+
+  // バッチ12-2: ヘッダーに現在の累計(完了済みホールぶん)を常時表示する。
+  // 入力中のホールはまだスコアが確定していないので含めない。
+  (function renderCumulative() {
+    const played = playedHoleCount(round);
+    if (played === 0) { $("holeCum").textContent = ""; return; }
+    const t = roundTotals(activeHoles(round));
+    const diff = t.score - t.par;
+    $("holeCum").textContent = `${played}H終了 ${diff >= 0 ? "+" : ""}${diff}`;
+  })();
 
   /* ---- club grid ---- */
   const clubGrid = $("clubGrid");
@@ -407,6 +418,19 @@ import { inferLie, inferPuttDist, playedHoleCount } from "./stats.js";
   /* ---- menu / 途中終了 ---- */
   $("menuBtn").addEventListener("click", () => $("menuOverlay").classList.add("show"));
   $("closeMenuBtn").addEventListener("click", () => $("menuOverlay").classList.remove("show"));
+
+  /* ---- バッチ12-2: ⋯からスコアカードをオーバーレイ表示(プレー済みのホールまで) ----
+     ページ遷移はしない(入力中の shots・editIndex 等のメモリ上の状態を失わないため)。
+     round.holes は直前ホールまで保存済みの内容がそのまま入っているので、DBの再読込は不要。 */
+  $("openScorecardBtn").addEventListener("click", () => {
+    $("menuOverlay").classList.remove("show");
+    const { html, sc } = scorecardBodyHTML(round);
+    $("scorecardBody").innerHTML = html;
+    $("scorecardTotalRow").innerHTML = scorecardTotalRowHTML(sc);
+    $("scorecardLegend").innerHTML = scorecardLegendHTML();
+    $("scorecardOverlay").classList.add("show");
+  });
+  $("closeScorecardBtn").addEventListener("click", () => $("scorecardOverlay").classList.remove("show"));
   $("endEarlyBtn").addEventListener("click", () => {
     $("menuOverlay").classList.remove("show");
     const played = playedHoleCount(round);

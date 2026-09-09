@@ -574,6 +574,57 @@ export function scoreDistribution(holes) {
   });
 }
 
+/* ---------- バッチ12: スコアカード ----------
+   round.holes はプレー順(index 0 = 1打目を打ったホール)で格納されており、
+   各要素の .number に実ホール番号(1-18)が入っている。前半9(index 0-8)・
+   後半9(index 9-17)の2ブロックに分けて表示する。ブロック名は現時点では
+   OUT/IN固定(バッチ14でコース(9ホール)の実名に差し替える)。 */
+export function scorecardCellClass(score, par) {
+  if (score == null) return "s-none";
+  const d = score - par;
+  if (d <= -1) return "s-under";
+  if (d === 0) return "s-par";
+  if (d === 1) return "s-bogey";
+  return "s-double";
+}
+
+function scorecardBlock(holes, played, offset, label) {
+  const parTotal = holes.reduce((a, h) => a + h.par, 0);
+  let scoreSum = 0, puttSum = 0, any = false;
+  const cells = holes.map((h, i) => {
+    const idx = offset + i;
+    if (idx >= played) return { number: h.number, par: h.par, score: null, putt: null };
+    const hs = holeStats(h);
+    scoreSum += hs.score; puttSum += hs.putts; any = true;
+    return { number: h.number, par: h.par, score: hs.score, putt: hs.putts };
+  });
+  return {
+    label, cells, parTotal,
+    scoreTotal: any ? scoreSum : null,
+    puttTotal: any ? puttSum : null
+  };
+}
+
+export function computeScorecard(round) {
+  const holes = round.holes;
+  const played = playedHoleCount(round);
+  const frontHoles = holes.slice(0, 9);
+  const backHoles = holes.slice(9, 18);
+  const frontLabel = frontHoles.length && frontHoles[0].number <= 9 ? "OUT" : "IN";
+  const backLabel = frontLabel === "OUT" ? "IN" : "OUT";
+  const front = scorecardBlock(frontHoles, played, 0, frontLabel);
+  const back = scorecardBlock(backHoles, played, 9, backLabel);
+  const totalScore = played ? (front.scoreTotal || 0) + (back.scoreTotal || 0) : null;
+  const totalPutts = played ? (front.puttTotal || 0) + (back.puttTotal || 0) : null;
+  const parSoFar = holes.slice(0, played).reduce((a, h) => a + h.par, 0);
+  const pen = played ? activeHoles(round).map(holeStats).reduce((a, h) => a + h.pen, 0) : null;
+  return {
+    front, back, played,
+    totalScore, totalPutts, pen,
+    toPar: played ? totalScore - parSoFar : null
+  };
+}
+
 /* ---------- ホールタイプ別 平均± ---------- */
 export function holeTypeAverages(holes) {
   return [3, 4, 5].map((par) => {

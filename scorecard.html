@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="css/style.css">
+<title>スコアカード - ゴルフ記録</title>
+</head>
+<body>
+<div class="app">
+  <header class="hero">
+    <div class="h-sub">
+      <button type="button" id="backBtn" class="course-name-btn" style="text-decoration:none;">&larr; 戻る</button>
+      ・<span id="headerDate"></span> <span id="headerCourse"></span>
+    </div>
+    <div class="h-title">スコアカード</div>
+    <div class="hero">
+      <span class="score" id="heroScore">-</span>
+      <span class="topar" id="heroToPar"></span>
+    </div>
+    <div class="hero-chips" id="heroChips"></div>
+  </header>
+
+  <main>
+    <div class="card">
+      <div id="scorecardBody"></div>
+      <div class="sc-total-row" id="scorecardTotalRow"></div>
+      <div class="sc-legend" id="scorecardLegend"></div>
+    </div>
+  </main>
+</div>
+
+<script type="module" src="js/scorecard.js"></script>
+<script type="module" src="js/sw-register.js"></script>
+</body>
+</html>

@@ -20,6 +20,8 @@
   --loss: #c65a35;
   --over: #b0421f;
   --under: #1c5cab;
+  --under-pale: #e4edfa;
+  --double-pale: #fbeee8;
   --radius: 14px;
 }
 * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -62,6 +64,12 @@ header.hero .hero-chip {
 }
 header.hero .hero-top-row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 header.hero .hero-top-row .h-sub { flex: 1; min-width: 0; }
+header.hero .hero-top-actions { display: flex; gap: 6px; align-items: center; flex: 0 0 auto; }
+header.hero .hero-btn {
+  background: rgba(255,255,255,.18); border: none; color: #fff;
+  border-radius: 999px; font-size: 12px; font-weight: 700; padding: 0 12px; height: 32px;
+}
+header.hero .hero-btn:active { background: rgba(255,255,255,.32); }
 header.hero .warn-banner {
   margin-top: 12px; background: rgba(255,255,255,.16); border-radius: 10px;
   padding: 8px 10px; font-size: 12px; font-weight: 600;
@@ -205,6 +213,35 @@ td.putt3 { color: var(--over); font-weight: 700; }
 
 .mock-note { text-align: center; font-size: 10px; color: var(--muted); padding: 14px 0 4px; }
 
+/* ---- バッチ12: スコアカード(scorecard.html本体 / hole.htmlのオーバーレイ共通) ---- */
+.sc-block + .sc-block { margin-top: 12px; }
+.sc-block-name {
+  font-size: 11px; font-weight: 700; color: var(--green-dark);
+  margin: 0 2px 4px; display: flex; justify-content: space-between; align-items: baseline;
+}
+.sc-block-name span { font-weight: 500; color: var(--muted); font-size: 10px; }
+table.sc-table { table-layout: fixed; }
+.sc-table th.rowlbl, .sc-table td.rowlbl {
+  width: 30px; font-size: 10px; color: var(--muted); font-weight: 600; text-align: left; padding-left: 2px;
+}
+.sc-table thead th { font-size: 10px; background: var(--bg); }
+.sc-table th.tot, .sc-table td.tot { background: var(--bg); font-weight: 700; font-size: 12px; }
+.sc-table tr.par td, .sc-table tr.putt td { font-size: 11px; padding: 4px 0; }
+.sc-table tr.score td { font-weight: 700; padding: 5px 0; }
+.sc-table td.s-under { background: var(--under-pale); color: var(--under); }
+.sc-table td.s-par   { background: var(--green-pale); color: var(--green-dark); }
+.sc-table td.s-bogey { background: var(--warn-pale); color: var(--warn); }
+.sc-table td.s-double{ background: var(--double-pale); color: var(--bad); }
+.sc-table td.s-none  { color: var(--muted); font-weight: 400; }
+
+.sc-total-row { display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line); }
+.sc-total-row .total-item { flex: 1; text-align: center; }
+.sc-total-row .total-item .v { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sc-total-row .total-item .k { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.sc-legend { display: flex; gap: 10px; margin: 10px 2px 0; font-size: 10px; color: var(--muted); flex-wrap: wrap; }
+.sc-legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 3px; }
+
 /* ============================================================
    入力画面(hole.html)固有コンポーネント
    ============================================================ */
@@ -213,8 +250,10 @@ header.hole-header {
   padding: calc(10px + env(safe-area-inset-top)) 16px 12px;
   display: flex; align-items: center; justify-content: space-between;
 }
+.hole-info-col { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .hole-info { display: flex; align-items: baseline; gap: 8px; }
 .hole-num { font-size: 22px; font-weight: 700; }
+.hole-cum { font-size: 11px; opacity: .85; min-height: 14px; }
 .hole-par { font-size: 14px; opacity: .85; }
 .hole-par-btn {
   background: rgba(255,255,255,.18); border: none; color: #fff;

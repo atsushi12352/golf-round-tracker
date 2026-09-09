@@ -398,6 +398,11 @@ const COMPARE_LABELS = { recent5: "直近5R平均", all: "全期間平均", best
     location.reload();
   });
 
+  /* ---- バッチ12: スコアカード ---- */
+  $("scorecardBtn").addEventListener("click", () => {
+    location.href = `scorecard.html?round=${roundId}`;
+  });
+
   /* ---- メニュー(⋯)からラウンド削除 ---- */
   $("menuBtn").addEventListener("click", () => $("menuOverlay").classList.add("show"));
   $("closeMenuBtn").addEventListener("click", () => $("menuOverlay").classList.remove("show"));

@@ -13,9 +13,12 @@
 <body>
 <div class="app">
   <header class="hole-header">
-    <div class="hole-info">
-      <span class="hole-num">HOLE <span id="holeNum">1</span></span>
-      <button class="hole-par-btn" id="parBtn">Par <span id="holePar">4</span></button>
+    <div class="hole-info-col">
+      <div class="hole-info">
+        <span class="hole-num">HOLE <span id="holeNum">1</span></span>
+        <button class="hole-par-btn" id="parBtn">Par <span id="holePar">4</span></button>
+      </div>
+      <div class="hole-cum" id="holeCum"></div>
     </div>
     <div class="stroke-now">
       <div>
@@ -111,9 +114,22 @@
   <div class="sheet">
     <h2>メニュー</h2>
     <div class="sheet-btns">
+      <button class="sheet-btn ghost" id="openScorecardBtn">スコアカード</button>
       <button class="sheet-btn danger" id="endEarlyBtn">ここまでで終了して保存</button>
       <button class="sheet-btn danger" id="discardBtn">保存せずにラウンドを中止</button>
       <button class="sheet-btn ghost" id="closeMenuBtn">閉じる</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="scorecardOverlay">
+  <div class="sheet">
+    <h2>スコアカード</h2>
+    <div id="scorecardBody"></div>
+    <div class="sc-total-row" id="scorecardTotalRow"></div>
+    <div class="sc-legend" id="scorecardLegend"></div>
+    <div class="sheet-btns">
+      <button class="sheet-btn ghost" id="closeScorecardBtn">閉じる</button>
     </div>
   </div>
 </div>
