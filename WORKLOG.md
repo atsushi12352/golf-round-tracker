@@ -1,7 +1,8 @@
-# 作業ログ(fix-instructions-3.md 自走セッション)
+# 作業ログ(fix-instructions-3.md / fix-instructions-4.md 自走セッション)
 
-このファイルは `fix-instructions-3.md` の指示に従い、ユーザー不在のセッションで
-バッチ6〜10を実施した記録。各バッチの終了時に追記する。
+このファイルは `fix-instructions-3.md`(バッチ6〜10)・`fix-instructions-4.md`
+(バッチ11〜14)の指示に従い、ユーザー不在のセッションで実施した記録。
+各バッチの終了時に追記する。
 
 ---
 
@@ -447,3 +448,87 @@
   SPEC.mdの記述更新が必要かどうかはユーザー確認をお願いしたい。
 
 `git push` は行っていない。ユーザーが内容を確認のうえpushしてください。
+
+---
+---
+
+# fix-instructions-4.md 自走セッション(バッチ11〜14)
+
+## バッチ11:オフラインで記録できない不具合の修正(完了)【最優先】
+
+### 原因
+
+指示書の記載どおり。`service-worker.js` の fetch ハンドラが `caches.match(event.request)`
+(クエリ文字列まで完全一致)を使っており、アプリがホール遷移に使う
+`hole.html?round=xxx&hole=3` のようなクエリ付きURLがプリキャッシュされた
+`hole.html` にヒットせず、オフラインで失敗していた。
+
+### 実施内容
+
+- `service-worker.js` の fetch ハンドラを指示書のコードに置き換え。
+  - `req.mode === "navigate"` のとき `caches.match(req, {ignoreSearch:true})` で
+    クエリを無視してマッチさせ、更に見つからなければ `fetch` にフォールバック、
+    オフラインで両方失敗したら `index.html` を返す。
+  - navigate以外(js/css/画像等)は従来通りcache-first、フェッチ成功時は
+    `res.ok && res.type==="basic"` のときだけキャッシュに書き込む(不透明応答や
+    エラー応答をキャッシュしない安全策、指示書のコードそのまま)。
+  - 自オリジン以外のリクエストは素通し(`url.origin !== self.location.origin`)。
+- `CACHE_VERSION` を `golf-log-v5` → `golf-log-v6` に更新。
+- `PRECACHE_URLS` の抜け漏れ確認: `js/` `css/` 配下の実ファイル一覧
+  (db.js/clubs.js/stats.js/presetCourses.js/backup.js/sw-register.js/home.js/
+  roundStart.js/holeInput.js/review.js/dashboard.js/settings.js/style.css)と
+  突き合わせた結果、漏れなし(既存の23件のままで一致)。今後の抜け漏れ防止のため、
+  `service-worker.js` 冒頭にファイル追加時は `PRECACHE_URLS` にも追記する旨の
+  コメントを追加した。
+- オフライン状態の可視化: `js/sw-register.js`(全6画面で読み込み済みの共通スクリプト)
+  に `navigator.onLine` を見て `offline`/`online` イベントで画面最上部に
+  「オフライン(記録は端末に保存されます)」という帯を出し入れする処理を追加。
+  `css/style.css` に `.offline-banner` を追加(`.app` コンテナの外側、bodyの先頭に
+  挿入するので全画面共通で効く)。
+
+### 動作確認(指示書の必須手順どおり実施)
+
+`.claude/launch.json` のポートを 8806→8807 に上げてから `preview_start`。
+
+1. `seed-round-1`(18ホール、既存プリセットコース使用、うち3ホール分ショット入りの
+   途中ラウンド)をブラウザ上で `js/db.js` を動的importして直接IndexedDBにシード。
+2. `index.html` を開いてService Workerを登録・activate待ちしたのち、
+   `caches.open("golf-log-v6")` の中身が `PRECACHE_URLS` の23件すべてであることを
+   コンソールで確認。
+3. **`preview_stop` でサーバプロセス自体を停止**(DevToolsのオフラインチェックボックスでは
+   不十分という指示書の警告に従い、実際にプロセスを落とした)。
+4. サーバ停止状態のまま以下すべてが表示できることを確認(`get_page_text`で内容も検証):
+   - `index.html` → ラウンド一覧(途中ラウンドの表示)が正しく出る。
+   - `hole.html?round=seed-round-1&hole=1` → 1番ホールの入力画面が正しく出る。
+   - `review.html?round=seed-round-1` → KPI・スコア分布・ヒートマップ等が正しく出る。
+   - `dashboard.html` → 完了ラウンドなしのメッセージが正しく出る(エラーにならない)。
+   4つとも旧実装なら再現するはずの `net::ERR_FAILED` は発生せず、いずれも
+   正常にレンダリングされた。
+5. サーバ停止状態のまま `hole.html?round=seed-round-1&hole=4` を開き、9マスグリッドの
+   「ナイス」セルをクリックしてティーショットを記録 → 「次のホールへ」ボタンをクリック
+   → **オフラインのまま** `hole.html?round=seed-round-1&hole=5` へ遷移し、
+   IndexedDB上の `round.holes[3].shots`・`playedHoles` が正しく更新(保存)されている
+   ことを確認。オフラインでの「1ホール入力→次ホール遷移→保存」が成立することを確認した。
+6. オフライン帯の表示/非表示は、実際のネットワーク遮断ではブラウザ環境の制約上
+   `navigator.onLine` を偽装できなかった(この検証環境は実インターネットに繋がって
+   おり、開発サーバを止めても `navigator.onLine` はtrueのまま)ため、
+   `Object.defineProperty(navigator,"onLine",...)` で値を差し替えたうえで
+   `offline`/`online` イベントを発火させて確認: `offline`で帯が出現し文言が
+   「オフライン(記録は端末に保存されます)」になること、`online`で帯が消えることを確認。
+7. サーバ再起動後、通常のオンライン動作(index.html等)が壊れていないことを確認。
+
+### 判断に迷った点
+
+- オフライン帯を「全画面共通の `js/sw-register.js` にJSで挿入する」方式にした
+  (各htmlのheaderに手で仕込む方式も考えたが、`hole.html`だけ`header.hole-header`で
+  他画面と構造が違うため、共通スクリプトでbody先頭に差し込む方式のほうが
+  6画面すべてに確実に効き、かつ指示範囲(オフライン検知のみ)を超えない)。
+- 帯のsafe-area対応(`env(safe-area-inset-top)`)は帯自身に持たせた。結果として
+  帯表示中は`header.hero`側のsafe-area分も含めて余白がやや多めになる画面があるが、
+  ノッチ端末での表示崩れ防止を優先し、機能上の問題ではないため許容した。
+
+### スキップした項目
+
+なし。
+
+---

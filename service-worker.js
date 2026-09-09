@@ -1,6 +1,10 @@
 // オフライン完全動作のためのcache-first Service Worker。
 // バージョン文字列を上げるとinstall時に再キャッシュ、activate時に旧キャッシュを破棄する。
-const CACHE_VERSION = "golf-log-v5";
+//
+// 【注意】html/css/jsのいずれかを変更・追加したら CACHE_VERSION を必ず連番で上げること。
+// 新規ファイルを追加したときは、下の PRECACHE_URLS にも忘れず追記すること
+// (js/ css/ 配下の実ファイル一覧と定期的に突き合わせて漏れがないか確認する)。
+const CACHE_VERSION = "golf-log-v6";
 const PRECACHE_URLS = [
   "./",
   "index.html",
@@ -44,17 +48,36 @@ self.addEventListener("activate", (event) => {
 });
 
 self.addEventListener("fetch", (event) => {
-  if (event.request.method !== "GET") return;
+  const req = event.request;
+  if (req.method !== "GET") return;
+
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return; // 自サイト以外は素通し
+
+  // ページ遷移(navigate)は必ずキャッシュで応答できるようにする。
+  // アプリは hole.html?round=...&hole=3 のようにクエリ付きで遷移するため、
+  // ignoreSearch を付けないとキャッシュにヒットせずオフラインで失敗する。
+  if (req.mode === "navigate") {
+    event.respondWith(
+      caches.match(req, { ignoreSearch: true })
+        .then((cached) => cached || fetch(req))
+        .catch(() => caches.match("index.html"))
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request).then((cached) => {
+    caches.match(req).then((cached) => {
       if (cached) return cached;
-      return fetch(event.request)
+      return fetch(req)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE_VERSION).then((cache) => cache.put(event.request, copy));
+          if (res && res.ok && res.type === "basic") {
+            const copy = res.clone();
+            caches.open(CACHE_VERSION).then((cache) => cache.put(req, copy));
+          }
           return res;
         })
-        .catch(() => cached);
+        .catch(() => caches.match(req, { ignoreSearch: true }));
     })
   );
 });
