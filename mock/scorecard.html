@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>スコアカード モック</title>
+<style>
+  :root {
+    --green: #0f7b4d;
+    --green-dark: #0a5c39;
+    --green-pale: #e6f4ee;
+    --ink: #0b0b0b;
+    --sub: #52514e;
+    --muted: #898781;
+    --line: #e1e0d9;
+    --bg: #f4f7f5;
+    --card: #fcfcfb;
+    --under: #1c5cab;
+    --under-pale: #e4edfa;
+    --bogey: #b9770e;
+    --bogey-pale: #fdf3e3;
+    --double: #b0421f;
+    --double-pale: #fbeee8;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  body {
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    background: var(--bg); color: var(--ink);
+    padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  }
+  .app { max-width: 480px; margin: 0 auto; }
+
+  header {
+    background: var(--green); color: #fff;
+    padding: calc(12px + env(safe-area-inset-top)) 16px 14px;
+  }
+  .h-sub { font-size: 12px; opacity: .85; }
+  .h-title { font-size: 16px; font-weight: 700; margin-top: 2px; }
+  .h-score { display: flex; align-items: baseline; gap: 10px; margin-top: 8px; }
+  .h-score .v { font-size: 34px; font-weight: 700; line-height: 1; }
+  .h-score .d { font-size: 16px; font-weight: 700; opacity: .9; }
+  .h-score .k { font-size: 11px; opacity: .8; margin-left: auto; }
+
+  main { padding: 12px; display: flex; flex-direction: column; gap: 12px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 10px; }
+  .card h2 { font-size: 13px; color: var(--sub); font-weight: 700; margin: 0 2px 8px; }
+
+  .seg-row { display: flex; gap: 6px; margin: 0 2px 10px; }
+  .seg-btn {
+    border: 1px solid var(--line); background: var(--card); color: var(--sub);
+    border-radius: 999px; font-size: 12px; font-weight: 600; padding: 7px 12px;
+  }
+  .seg-btn.selected { background: var(--green); border-color: var(--green); color: #fff; }
+
+  /* ---- scorecard ---- */
+  .block + .block { margin-top: 12px; }
+  .block-name {
+    font-size: 11px; font-weight: 700; color: var(--green-dark);
+    margin: 0 2px 4px; display: flex; justify-content: space-between; align-items: baseline;
+  }
+  .block-name span { font-weight: 500; color: var(--muted); font-size: 10px; }
+  table { width: 100%; border-collapse: collapse; table-layout: fixed; font-variant-numeric: tabular-nums; }
+  th, td {
+    text-align: center; padding: 5px 0; font-size: 13px;
+    border-bottom: 1px solid var(--line);
+  }
+  th.rowlbl, td.rowlbl {
+    width: 40px; font-size: 10px; color: var(--muted); font-weight: 600; text-align: left; padding-left: 2px;
+  }
+  thead th { font-size: 11px; color: var(--muted); font-weight: 600; background: var(--bg); }
+  thead th.tot, td.tot { background: var(--bg); font-weight: 700; font-size: 12px; }
+  tr.par td { color: var(--sub); font-size: 12px; }
+  tr.putt td { color: var(--sub); font-size: 12px; }
+  tr.score td { font-weight: 700; }
+  td.s-under { background: var(--under-pale); color: var(--under); }
+  td.s-par   { background: var(--green-pale); color: var(--green-dark); }
+  td.s-bogey { background: var(--bogey-pale); color: var(--bogey); }
+  td.s-double{ background: var(--double-pale); color: var(--double); }
+  td.s-none  { color: var(--muted); font-weight: 400; }
+  tr:last-child td { border-bottom: none; }
+
+  .total-row {
+    display: flex; gap: 8px; margin-top: 12px; padding-top: 10px; border-top: 1px solid var(--line);
+  }
+  .total-item { flex: 1; text-align: center; }
+  .total-item .v { font-size: 20px; font-weight: 700; }
+  .total-item .k { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+  .legend { display: flex; gap: 10px; margin: 10px 2px 0; font-size: 10px; color: var(--muted); flex-wrap: wrap; }
+  .legend i { display: inline-block; width: 14px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 3px; }
+
+  .note { font-size: 11px; color: var(--muted); line-height: 1.6; }
+  .note b { color: var(--ink); }
+  .mock-note { text-align: center; font-size: 10px; color: var(--muted); padding: 10px 0 4px; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <div class="h-sub" id="hSub">2026.9.5(土) ○○カントリークラブ・白ティー</div>
+    <div class="h-title">スコアカード</div>
+    <div class="h-score">
+      <span class="v" id="hTotal">-</span>
+      <span class="d" id="hToPar"></span>
+      <span class="k" id="hProgress"></span>
+    </div>
+  </header>
+
+  <main>
+    <div class="seg-row" id="segRow"></div>
+
+    <div class="card">
+      <div id="cardBody"></div>
+      <div class="total-row" id="totalRow"></div>
+      <div class="legend">
+        <span><i style="background:var(--under-pale);border:1px solid #b9cff0"></i>バーディ以下</span>
+        <span><i style="background:var(--green-pale);border:1px solid #b9ddca"></i>パー</span>
+        <span><i style="background:var(--bogey-pale);border:1px solid #ead9b8"></i>ボギー</span>
+        <span><i style="background:var(--double-pale);border:1px solid #edc7b8"></i>ダボ以上</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>この案のポイント</h2>
+      <div class="note">
+        18ホールを<b>スクロールなしの1画面</b>に収めるため、前半9・後半9の2ブロックに分けた
+        4行構成(ホール番号 / Par / スコア / パット)。<br><br>
+        ブロック見出しに<b>コース名</b>が入るので、恵庭カントリーのように9ホールずつ名前が
+        ついたゴルフ場でも「摩周→阿寒で回った」ことがそのまま残ります。
+        上の切替で「ラウンド中(12ホールまで)」の表示も確認できます。
+      </div>
+    </div>
+  </main>
+  <div class="mock-note">モック版:表示はダミーデータ</div>
+</div>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+
+  // ダミーデータ:恵庭CC 摩周→阿寒(各9ホール Par36)を想定
+  var ROUND = {
+    date: "2026.9.5(土)",
+    facility: "恵庭カントリー倶楽部",
+    tee: "白",
+    front: { name: "摩周コース", pars: [4,4,3,5,4,4,3,4,5] },
+    back:  { name: "阿寒コース", pars: [5,4,4,3,4,5,4,3,4] },
+    scores: [5,5,4,8,5,3,6,6,5, 6,5,4,4,5,7,5,4,5],
+    putts:  [2,2,2,2,3,2,2,2,2, 2,2,2,1,2,3,2,1,2]
+  };
+
+  var VIEWS = [
+    { key: "full", label: "ラウンド終了後(18H)", played: 18 },
+    { key: "mid",  label: "ラウンド中(12Hまで)", played: 12 }
+  ];
+  var current = "full";
+
+  function cls(score, par) {
+    if (score == null) return "s-none";
+    var d = score - par;
+    if (d <= -1) return "s-under";
+    if (d === 0) return "s-par";
+    if (d === 1) return "s-bogey";
+    return "s-double";
+  }
+
+  function buildBlock(loop, offset, played) {
+    var pars = loop.pars;
+    var html = '<div class="block">';
+    html += '<div class="block-name">' + loop.name
+         + '<span>Par ' + pars.reduce(function (a, b) { return a + b; }, 0) + '</span></div>';
+    html += '<table><thead><tr><th class="rowlbl">H</th>';
+    for (var i = 0; i < 9; i++) html += '<th>' + (offset + i + 1) + '</th>';
+    html += '<th class="tot">計</th></tr></thead><tbody>';
+
+    // Par
+    html += '<tr class="par"><td class="rowlbl">Par</td>';
+    for (i = 0; i < 9; i++) html += '<td>' + pars[i] + '</td>';
+    html += '<td class="tot">' + pars.reduce(function (a, b) { return a + b; }, 0) + '</td></tr>';
+
+    // スコア
+    var sSum = 0, pSum = 0, any = false;
+    html += '<tr class="score"><td class="rowlbl">スコア</td>';
+    for (i = 0; i < 9; i++) {
+      var idx = offset + i;
+      var s = idx < played ? ROUND.scores[idx] : null;
+      if (s != null) { sSum += s; any = true; }
+      html += '<td class="' + cls(s, pars[i]) + '">' + (s == null ? "-" : s) + '</td>';
+    }
+    html += '<td class="tot">' + (any ? sSum : "-") + '</td></tr>';
+
+    // パット
+    html += '<tr class="putt"><td class="rowlbl">パット</td>';
+    for (i = 0; i < 9; i++) {
+      var idx2 = offset + i;
+      var p = idx2 < played ? ROUND.putts[idx2] : null;
+      if (p != null) pSum += p;
+      html += '<td>' + (p == null ? "-" : p) + '</td>';
+    }
+    html += '<td class="tot">' + (any ? pSum : "-") + '</td></tr>';
+
+    html += '</tbody></table></div>';
+    return { html: html, score: sSum, putts: pSum, par: pars.reduce(function (a, b) { return a + b; }, 0), any: any };
+  }
+
+  function render() {
+    var v = VIEWS.filter(function (x) { return x.key === current; })[0];
+    var played = v.played;
+
+    var f = buildBlock(ROUND.front, 0, played);
+    var b = buildBlock(ROUND.back, 9, played);
+    $("cardBody").innerHTML = f.html + b.html;
+
+    var total = f.score + b.score;
+    var putts = f.putts + b.putts;
+    // 経過ホールぶんのParで±を出す
+    var parSoFar = 0;
+    for (var i = 0; i < played; i++) {
+      parSoFar += i < 9 ? ROUND.front.pars[i] : ROUND.back.pars[i - 9];
+    }
+    var diff = total - parSoFar;
+
+    $("hSub").textContent = ROUND.date + " " + ROUND.facility + "・" + ROUND.tee + "ティー";
+    $("hTotal").textContent = total;
+    $("hToPar").textContent = (diff >= 0 ? "+" : "") + diff;
+    $("hProgress").textContent = played < 18 ? played + "ホール終了時点" : "18ホール終了";
+
+    var pen = played === 18 ? 2 : 1;
+    $("totalRow").innerHTML =
+        tile(total, "スコア") + tile(putts, "パット")
+      + tile((diff >= 0 ? "+" : "") + diff, "対Par") + tile(pen, "ペナルティ");
+  }
+  function tile(v, k) {
+    return '<div class="total-item"><div class="v">' + v + '</div><div class="k">' + k + '</div></div>';
+  }
+
+  VIEWS.forEach(function (v) {
+    var btn = document.createElement("button");
+    btn.className = "seg-btn" + (v.key === current ? " selected" : "");
+    btn.textContent = v.label;
+    btn.dataset.key = v.key;
+    btn.addEventListener("click", function () {
+      current = v.key;
+      Array.prototype.forEach.call($("segRow").children, function (x) {
+        x.classList.toggle("selected", x.dataset.key === v.key);
+      });
+      render();
+    });
+    $("segRow").appendChild(btn);
+  });
+
+  render();
+})();
+</script>
+</body>
+</html>
