@@ -1,4 +1,4 @@
-import { getRound, getCourse, getCourses, getRounds, getSettings, saveRound, saveCourse, deleteRound, getFacility, getLoop } from "./db.js";
+import { getRound, getCourse, getRounds, getSettings, saveRound, saveCourse, deleteRound, getFacility, getLoop, getFacilities, getLoops } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS, activeHoles,
   build13Heat, heat13Total, heatmap13InsightHTML, compareRoundsFor, compareKpiValues, DIST_RAMP
@@ -63,9 +63,10 @@ const COMPARE_LABELS = { recent5: "直近5R平均", all: "全期間平均", best
   const round = await getRound(roundId);
   if (!round) { location.href = "index.html"; return; }
 
-  const [course, settings, allCourses, allRounds, facility, frontLoop, backLoop] = await Promise.all([
-    getCourse(round.courseId), getSettings(), getCourses(), getRounds(),
-    getFacility(round.facilityId), getLoop(round.frontLoopId), getLoop(round.backLoopId)
+  const [course, settings, allRounds, facility, frontLoop, backLoop, allFacilities, allLoops] = await Promise.all([
+    getCourse(round.courseId), getSettings(), getRounds(),
+    getFacility(round.facilityId), getLoop(round.frontLoopId), getLoop(round.backLoopId),
+    getFacilities(), getLoops()
   ]);
   const rv = computeReview(round, settings.kpis);
 
@@ -371,44 +372,129 @@ const COMPARE_LABELS = { recent5: "直近5R平均", all: "全期間平均", best
     location.reload();
   });
 
-  /* ---- 5-2: ラウンドのコース付け替え ---- */
-  let pendingCourseId = null;
-  $("courseNameBtn").addEventListener("click", () => {
-    const picks = allCourses.filter((c) => c.id !== round.courseId);
+  /* ---- バッチ13改訂: ラウンドのコース付け替え(ゴルフ場→前半コース→後半コース) ----
+     5-2で実装した「コース名タップで付け替え」を新モデル(Facility/Loop)に対応させた。
+     旧来の単一Course選択だったところを、ゴルフ場→前半コース→後半コースの3段階選択に
+     拡張(新しく別の導線は作らず、既存のcourseNameBtn/オーバーレイを流用)。 */
+  let pickStep = null; // "facility" | "front" | "back"
+  let pickFacility = null, pickFrontLoop = null;
+  let pendingReassign = null;
+
+  function loopsOf(facilityId) { return allLoops.filter((l) => l.facilityId === facilityId); }
+
+  function renderCoursePickStep() {
     const chipsEl = $("coursePickChips");
     chipsEl.innerHTML = "";
-    if (picks.length === 0) {
-      chipsEl.innerHTML = '<div class="empty-state">他に登録されているコースがありません。</div>';
-    } else {
-      picks.forEach((c) => {
+    $("coursePickBack").style.display = pickStep === "facility" ? "none" : "";
+
+    if (pickStep === "facility") {
+      $("coursePickTitle").textContent = "ゴルフ場を選ぶ";
+      if (allFacilities.length === 0) {
+        chipsEl.innerHTML = '<div class="empty-state">登録されているゴルフ場がありません。</div>';
+        return;
+      }
+      allFacilities.forEach((f) => {
         const b = document.createElement("button");
         b.className = "chip-toggle";
         b.type = "button";
-        b.textContent = c.name;
-        b.addEventListener("click", () => {
-          $("coursePickOverlay").classList.remove("show");
-          const activeH = activeHoles(round);
-          const mismatch = activeH.filter((h) => c.pars[h.number - 1] !== h.par).length;
-          pendingCourseId = c.id;
-          $("courseReassignText").textContent = `このラウンドを「${c.name}」の記録として扱います。よろしいですか?`;
-          $("courseReassignMismatch").textContent = mismatch > 0
-            ? `パー構成がコース情報と${mismatch}ホール分異なります(記録はそのまま保持されます)。`
-            : "";
-          $("courseReassignConfirmOverlay").classList.add("show");
-        });
+        b.textContent = f.name;
+        b.addEventListener("click", () => { pickFacility = f; pickStep = "front"; renderCoursePickStep(); });
+        chipsEl.appendChild(b);
+      });
+      return;
+    }
+
+    const fLoops = loopsOf(pickFacility.id);
+    if (fLoops.length === 0) {
+      chipsEl.innerHTML = '<div class="empty-state">このゴルフ場にはコースが登録されていません。</div>';
+      return;
+    }
+    if (pickStep === "front") {
+      $("coursePickTitle").textContent = `${pickFacility.name}: 前半のコースを選ぶ`;
+      fLoops.forEach((l) => {
+        const b = document.createElement("button");
+        b.className = "chip-toggle";
+        b.type = "button";
+        b.textContent = l.name;
+        b.addEventListener("click", () => { pickFrontLoop = l; pickStep = "back"; renderCoursePickStep(); });
+        chipsEl.appendChild(b);
+      });
+    } else if (pickStep === "back") {
+      $("coursePickTitle").textContent = `${pickFacility.name}: 後半のコースを選ぶ`;
+      fLoops.forEach((l) => {
+        const b = document.createElement("button");
+        b.className = "chip-toggle";
+        b.type = "button";
+        b.textContent = l.name;
+        b.addEventListener("click", () => confirmReassign(pickFacility, pickFrontLoop, l));
         chipsEl.appendChild(b);
       });
     }
+  }
+
+  function confirmReassign(facility, frontLoop, backLoop) {
+    $("coursePickOverlay").classList.remove("show");
+    // 記録済み(プレー済み)ホールのPar構成が、付け替え先のコースと食い違うか調べる
+    // (Parそのものは書き換えない。5-2から踏襲した既存の挙動)。
+    const activeH = activeHoles(round);
+    let mismatch = 0;
+    activeH.forEach((h, i) => {
+      const expectedPar = i < 9 ? frontLoop.pars[i] : backLoop.pars[i - 9];
+      if (expectedPar !== h.par) mismatch++;
+    });
+    pendingReassign = { facility, frontLoop, backLoop };
+    const loopPart = frontLoop.id === backLoop.id ? frontLoop.name : `${frontLoop.name}→${backLoop.name}`;
+    $("courseReassignText").textContent = `このラウンドを「${facility.name} ${loopPart}」の記録として扱います。よろしいですか?`;
+    $("courseReassignMismatch").textContent = mismatch > 0
+      ? `Par構成がコース情報と${mismatch}ホール分異なります(記録はそのまま保持されます)。`
+      : "";
+    $("courseReassignConfirmOverlay").classList.add("show");
+  }
+
+  $("courseNameBtn").addEventListener("click", () => {
+    pickStep = "facility";
+    pickFacility = null;
+    pickFrontLoop = null;
+    renderCoursePickStep();
     $("coursePickOverlay").classList.add("show");
+  });
+  $("coursePickBack").addEventListener("click", () => {
+    if (pickStep === "back") { pickStep = "front"; pickFrontLoop = null; }
+    else if (pickStep === "front") { pickStep = "facility"; pickFacility = null; }
+    renderCoursePickStep();
   });
   $("coursePickCancel").addEventListener("click", () => $("coursePickOverlay").classList.remove("show"));
   $("courseReassignNo").addEventListener("click", () => {
-    pendingCourseId = null;
+    pendingReassign = null;
     $("courseReassignConfirmOverlay").classList.remove("show");
   });
   $("courseReassignYes").addEventListener("click", async () => {
-    if (!pendingCourseId) return;
-    round.courseId = pendingCourseId;
+    if (!pendingReassign) return;
+    const { facility, frontLoop, backLoop } = pendingReassign;
+    round.facilityId = facility.id;
+    round.frontLoopId = frontLoop.id;
+    round.backLoopId = backLoop.id;
+    round.holes.forEach((h, i) => {
+      if (i < 9) { h.loopId = frontLoop.id; h.loopHole = i + 1; }
+      else { h.loopId = backLoop.id; h.loopHole = i - 9 + 1; }
+      // par はここでは変更しない(記録済みの実プレー結果を優先する。上のmismatch表示のみで知らせる)
+    });
+    // courseId/start互換フィールドの再計算。付け替え前の値はもう正しくない可能性があるため、
+    // いったん外し、旧Courseから移行したFacility(fac-<courseId>)で、かつ前半・後半が
+    // ちょうどそのOUT/INペアのときだけ、roundStart.jsの新規作成時と同じ規則で補い直す。
+    delete round.courseId;
+    delete round.start;
+    if (facility.id.indexOf("fac-") === 0) {
+      const legacyCourseId = facility.id.slice(4);
+      const outId = legacyCourseId + "-out", inId = legacyCourseId + "-in";
+      if (frontLoop.id === outId && backLoop.id === inId) {
+        round.courseId = legacyCourseId;
+        round.start = "OUT";
+      } else if (frontLoop.id === inId && backLoop.id === outId) {
+        round.courseId = legacyCourseId;
+        round.start = "IN";
+      }
+    }
     await saveRound(round);
     location.reload();
   });

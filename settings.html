@@ -30,15 +30,10 @@
     </div>
 
     <div class="card">
-      <h2>ゴルフ場登録<small>9ホールのコースを組み合わせて18ホールを表現します</small></h2>
+      <h2>ゴルフ場・コース管理<small>9ホールのコースを組み合わせて18ホールを表現します</small></h2>
       <div id="facilityList"></div>
       <button class="btn ghost block" id="newFacilityBtn" type="button" style="margin-top:10px;">ゴルフ場を新規登録</button>
-    </div>
-
-    <div class="card">
-      <h2>コース管理<small>旧形式(18ホール固定)。ラウンド開始・分析は上のゴルフ場登録を使います</small></h2>
-      <div class="round-list" id="courseList"></div>
-      <div class="hm-note" style="margin-top:8px;">ラウンドの記録が残っているコースは削除できません。</div>
+      <div class="hm-note" style="margin-top:8px;">ラウンドの記録が残っているゴルフ場・コースやプリセットは削除できません。</div>
     </div>
 
     <div class="card backup-row">
@@ -52,13 +47,13 @@
   </main>
 </div>
 
-<div class="overlay" id="courseDeleteConfirmOverlay">
+<div class="overlay" id="deleteConfirmOverlay">
   <div class="sheet">
-    <h2>コースを削除しますか?</h2>
-    <p class="sheet-text" id="courseDeleteConfirmText"></p>
+    <h2 id="deleteConfirmTitle">削除しますか?</h2>
+    <p class="sheet-text" id="deleteConfirmText"></p>
     <div class="sheet-btns">
-      <button class="sheet-btn danger" id="courseDeleteConfirmYes">削除する</button>
-      <button class="sheet-btn ghost" id="courseDeleteConfirmNo">戻る</button>
+      <button class="sheet-btn danger" id="deleteConfirmYes">削除する</button>
+      <button class="sheet-btn ghost" id="deleteConfirmNo">戻る</button>
     </div>
   </div>
 </div>
@@ -70,9 +65,21 @@
   </div>
 </div>
 
+<div class="overlay" id="loopAddOverlay">
+  <div class="sheet">
+    <h2 id="loopAddTitle">コースを追加</h2>
+    <div id="loopAddFormContainer"></div>
+  </div>
+</div>
+
 <div class="overlay" id="loopHolesOverlay">
   <div class="sheet">
-    <h2 id="loopHolesTitle">コースのPar</h2>
+    <h2 id="loopHolesTitle">コースの編集</h2>
+    <div class="field">
+      <label>コース名</label>
+      <input type="text" id="loopNameInput">
+    </div>
+    <button class="btn ghost block" id="loopNameApplyBtn" type="button" style="margin:8px 0 16px;">名前を変更</button>
     <div class="loop-hole-list" id="loopHoleList"></div>
     <div class="sheet-btns">
       <button class="sheet-btn ghost" id="loopHolesCloseBtn">閉じる</button>

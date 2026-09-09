@@ -1,9 +1,9 @@
-import { getSettings, saveSettings, getCourses, getRounds, deleteCourse, getFacilities, getLoops, saveLoop } from "./db.js";
+import { getSettings, saveSettings, getRounds, getFacilities, getLoops, saveLoop, deleteFacility, deleteLoop } from "./db.js";
 import { CLUB_MASTER } from "./clubs.js";
 import { PRESET_COURSES } from "./presetCourses.js";
 import { exportBackup, importBackupFile, getLastBackupAt, daysSinceLastBackup, STALE_DAYS } from "./backup.js";
 import { KPI_CATALOG, KPI_GROUPS } from "./stats.js";
-import { renderFacilityForm } from "./facilityForm.js";
+import { renderFacilityForm, renderAddLoopForm } from "./facilityForm.js";
 
 (async function () {
   const $ = (id) => document.getElementById(id);
@@ -74,64 +74,18 @@ import { renderFacilityForm } from "./facilityForm.js";
   }
   renderClubs();
 
-  /* ---- おまけ: 未参照コースの削除 ---- */
-  // プリセットコースは削除しても次回起動時のマイグレーションで復活するため、削除対象から除外する
-  const presetIds = new Set(PRESET_COURSES.map((p) => p.id));
-  const courseList = $("courseList");
-  let pendingDeleteCourse = null;
-  async function renderCourses() {
-    const [courses, rounds] = await Promise.all([getCourses(), getRounds()]);
-    const usedIds = new Set(rounds.map((r) => r.courseId));
-    if (courses.length === 0) {
-      courseList.innerHTML = '<div class="empty-state">登録されているコースがありません。</div>';
-      return;
-    }
-    courseList.innerHTML = "";
-    courses.forEach((c) => {
-      const count = rounds.filter((r) => r.courseId === c.id).length;
-      const inUse = usedIds.has(c.id);
-      const isPreset = presetIds.has(c.id);
-      const statusText = isPreset ? "プリセットコース(削除不可)" : count > 0 ? `${count}ラウンドで使用中` : "未使用";
-      const row = document.createElement("div");
-      row.className = "round-card course-row";
-      row.innerHTML = `
-        <div class="rc-main">
-          <div class="course">${c.name}</div>
-          <div class="status">${statusText}</div>
-        </div>`;
-      const delBtn = document.createElement("button");
-      delBtn.className = "rc-delete";
-      delBtn.type = "button";
-      delBtn.setAttribute("aria-label", "削除");
-      delBtn.textContent = "🗑";
-      delBtn.disabled = inUse || isPreset;
-      delBtn.addEventListener("click", () => {
-        if (inUse || isPreset) return;
-        pendingDeleteCourse = c;
-        $("courseDeleteConfirmText").textContent = `「${c.name}」を削除しますか?この操作は取り消せません。`;
-        $("courseDeleteConfirmOverlay").classList.add("show");
-      });
-      row.appendChild(delBtn);
-      courseList.appendChild(row);
-    });
-  }
-  await renderCourses();
-  $("courseDeleteConfirmNo").addEventListener("click", () => {
-    pendingDeleteCourse = null;
-    $("courseDeleteConfirmOverlay").classList.remove("show");
-  });
-  $("courseDeleteConfirmYes").addEventListener("click", async () => {
-    if (!pendingDeleteCourse) return;
-    await deleteCourse(pendingDeleteCourse.id);
-    pendingDeleteCourse = null;
-    $("courseDeleteConfirmOverlay").classList.remove("show");
-    await renderCourses();
-  });
+  /* ---- バッチ13改訂: ゴルフ場(Facility)+9ホールコース(Loop)の統合管理 ----
+     旧「コース管理」(Course一覧・削除)と旧「ゴルフ場登録」の2カードを、この1カードに
+     統合した(役割の重複を避けるため)。プリセット由来・旧Course由来のFacility/Loopの
+     idはここで判定する(プリセットは削除不可)。 */
+  const presetFacilityIds = new Set(PRESET_COURSES.map((p) => "fac-" + p.id));
+  const presetLoopIds = new Set(PRESET_COURSES.flatMap((p) => [p.id + "-out", p.id + "-in"]));
 
-  /* ---- バッチ13: ゴルフ場(Facility)+9ホールコース(Loop) ---- */
   const facilityList = $("facilityList");
+  let pendingDelete = null; // { type: "facility"|"loop", id, name }
+
   async function renderFacilities() {
-    const [facilities, loops] = await Promise.all([getFacilities(), getLoops()]);
+    const [facilities, loops, rounds] = await Promise.all([getFacilities(), getLoops(), getRounds()]);
     if (facilities.length === 0) {
       facilityList.innerHTML = '<div class="empty-state">登録されているゴルフ場がありません。</div>';
       return;
@@ -140,25 +94,112 @@ import { renderFacilityForm } from "./facilityForm.js";
     facilities.forEach((f) => {
       const card = document.createElement("div");
       card.className = "card facility-card";
+
       const fLoops = loops.filter((l) => l.facilityId === f.id);
-      card.innerHTML = `<div class="fname">${f.name}</div>`;
+      const fUsedCount = rounds.filter((r) => r.facilityId === f.id).length;
+      const fIsPreset = presetFacilityIds.has(f.id);
+
+      const fNameRow = document.createElement("div");
+      fNameRow.style.display = "flex";
+      fNameRow.style.alignItems = "center";
+      fNameRow.style.justifyContent = "space-between";
+      fNameRow.style.gap = "8px";
+      const fName = document.createElement("div");
+      fName.className = "fname";
+      fName.textContent = f.name;
+      fNameRow.appendChild(fName);
+      const fDelBtn = document.createElement("button");
+      fDelBtn.type = "button";
+      fDelBtn.className = "rc-delete";
+      fDelBtn.setAttribute("aria-label", "ゴルフ場を削除");
+      fDelBtn.textContent = "🗑";
+      fDelBtn.disabled = fIsPreset || fUsedCount > 0;
+      fDelBtn.addEventListener("click", () => {
+        if (fDelBtn.disabled) return;
+        pendingDelete = { type: "facility", id: f.id };
+        $("deleteConfirmTitle").textContent = "ゴルフ場を削除しますか?";
+        $("deleteConfirmText").textContent =
+          `「${f.name}」を削除しますか?登録されているコース(${fLoops.length}件)もすべて削除されます。この操作は取り消せません。`;
+        $("deleteConfirmOverlay").classList.add("show");
+      });
+      fNameRow.appendChild(fDelBtn);
+      card.appendChild(fNameRow);
+
       fLoops.forEach((loop) => {
         const total = loop.pars.reduce((a, b) => a + b, 0);
+        const loopUsedCount = rounds.filter((r) => r.frontLoopId === loop.id || r.backLoopId === loop.id).length;
+        const loopIsPreset = presetLoopIds.has(loop.id);
+        const statusText = loopIsPreset ? "プリセットコース(削除不可)" : loopUsedCount > 0 ? `${loopUsedCount}ラウンドで使用中` : "未使用";
+
         const row = document.createElement("div");
         row.className = "facility-loop-row";
-        row.innerHTML = `<div><div class="lname">${loop.name}</div><div class="lpar">Par${total}(9ホール)</div></div>`;
+        row.innerHTML = `<div><div class="lname">${loop.name}</div><div class="lpar">Par${total}(9ホール)・${statusText}</div></div>`;
+
+        const btnGroup = document.createElement("div");
+        btnGroup.style.display = "flex";
+        btnGroup.style.alignItems = "center";
+        btnGroup.style.gap = "2px";
+
         const editBtn = document.createElement("button");
         editBtn.type = "button";
         editBtn.className = "lpar-edit";
-        editBtn.textContent = "Par修正";
+        editBtn.textContent = "編集";
         editBtn.addEventListener("click", () => openLoopHoles(loop));
-        row.appendChild(editBtn);
+        btnGroup.appendChild(editBtn);
+
+        const delBtn = document.createElement("button");
+        delBtn.type = "button";
+        delBtn.className = "rc-delete";
+        delBtn.setAttribute("aria-label", "コースを削除");
+        delBtn.textContent = "🗑";
+        delBtn.disabled = loopIsPreset || loopUsedCount > 0;
+        delBtn.addEventListener("click", () => {
+          if (delBtn.disabled) return;
+          pendingDelete = { type: "loop", id: loop.id };
+          $("deleteConfirmTitle").textContent = "コースを削除しますか?";
+          $("deleteConfirmText").textContent = `「${loop.name}」を削除しますか?この操作は取り消せません。`;
+          $("deleteConfirmOverlay").classList.add("show");
+        });
+        btnGroup.appendChild(delBtn);
+
+        row.appendChild(btnGroup);
         card.appendChild(row);
       });
+
+      const addLoopBtn = document.createElement("button");
+      addLoopBtn.type = "button";
+      addLoopBtn.className = "btn ghost block";
+      addLoopBtn.style.marginTop = "10px";
+      const atMax = fLoops.length >= 6;
+      addLoopBtn.textContent = atMax ? "コースは上限(6つ)まで登録済みです" : "このゴルフ場にコースを追加";
+      addLoopBtn.disabled = atMax;
+      addLoopBtn.addEventListener("click", () => {
+        $("loopAddTitle").textContent = `「${f.name}」にコースを追加`;
+        renderAddLoopForm($("loopAddFormContainer"), f, fLoops.length, async () => {
+          $("loopAddOverlay").classList.remove("show");
+          await renderFacilities();
+        }, () => $("loopAddOverlay").classList.remove("show"));
+        $("loopAddOverlay").classList.add("show");
+      });
+      card.appendChild(addLoopBtn);
+
       facilityList.appendChild(card);
     });
   }
   await renderFacilities();
+
+  $("deleteConfirmNo").addEventListener("click", () => {
+    pendingDelete = null;
+    $("deleteConfirmOverlay").classList.remove("show");
+  });
+  $("deleteConfirmYes").addEventListener("click", async () => {
+    if (!pendingDelete) return;
+    if (pendingDelete.type === "facility") await deleteFacility(pendingDelete.id);
+    else await deleteLoop(pendingDelete.id);
+    pendingDelete = null;
+    $("deleteConfirmOverlay").classList.remove("show");
+    await renderFacilities();
+  });
 
   $("newFacilityBtn").addEventListener("click", () => {
     renderFacilityForm($("facilityFormContainer"), async () => {
@@ -168,11 +209,13 @@ import { renderFacilityForm } from "./facilityForm.js";
     $("facilityNewOverlay").classList.add("show");
   });
 
-  // Loopの9ホール一覧(タップでPar修正。既存のPar修正と同じ「選ぶ→確定する」方式)
+  // Loopの編集(名前・Par)。名前は「入力→変更する」、Parは既存のPar修正と同じ
+  // 「選ぶ→確定する」の2段階方式(タップ即反映にしない)。
   let editingLoop = null, editingHoleIdx = null, loopParSelected = null;
   function openLoopHoles(loop) {
     editingLoop = loop;
-    $("loopHolesTitle").textContent = `${loop.name}のPar`;
+    $("loopHolesTitle").textContent = `${loop.name}の編集`;
+    $("loopNameInput").value = loop.name;
     const list = $("loopHoleList");
     list.innerHTML = "";
     loop.pars.forEach((par, i) => {
@@ -192,6 +235,16 @@ import { renderFacilityForm } from "./facilityForm.js";
     $("loopHolesOverlay").classList.add("show");
   }
   $("loopHolesCloseBtn").addEventListener("click", () => $("loopHolesOverlay").classList.remove("show"));
+
+  $("loopNameApplyBtn").addEventListener("click", async () => {
+    if (!editingLoop) return;
+    const newName = $("loopNameInput").value.trim();
+    if (!newName || newName === editingLoop.name) return;
+    editingLoop.name = newName;
+    await saveLoop(editingLoop);
+    $("loopHolesTitle").textContent = `${editingLoop.name}の編集`;
+    await renderFacilities();
+  });
 
   function renderLoopParEditChips(current) {
     loopParSelected = current;

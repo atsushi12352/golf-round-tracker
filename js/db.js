@@ -157,6 +157,24 @@ export async function loopsForFacility(facilityId) {
   const loops = await getLoops();
   return loops.filter((l) => l.facilityId === facilityId);
 }
+export async function deleteLoop(id) {
+  return dbDelete("loops", id);
+}
+
+// バッチ13改訂: ゴルフ場の削除。配下のLoopもすべて削除する。プリセット・使用中の
+// チェックは呼び出し側(settings.js)の責任(この関数自体は行わない)。
+// 旧Course由来のFacility(id が "fac-"+courseId)の場合は、元のCourseレコードも
+// 一緒に削除する(残すと ensureFacilitiesFromCourses が次回アクセス時に復活させてしまうため)。
+export async function deleteFacility(id) {
+  const loops = await loopsForFacility(id);
+  for (const l of loops) await dbDelete("loops", l.id);
+  await dbDelete("facilities", id);
+  if (id.indexOf("fac-") === 0) {
+    const courseId = id.slice(4);
+    const course = await dbGet("courses", courseId);
+    if (course) await dbDelete("courses", courseId);
+  }
+}
 
 // 既存の Course{id,name,pars[18]} を Facility+Loop(OUT/IN)に変換する(非破壊・冪等)。
 // Course自体は削除しない。同じFacility idが既にあれば何もしない(ensurePresetCoursesと同じ形)。

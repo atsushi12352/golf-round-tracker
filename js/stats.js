@@ -686,7 +686,16 @@ export function compareRoundsFor(mode, allRounds, currentRound) {
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
   if (mode === "all") return complete;
-  if (mode === "course") return complete.filter((r) => r.courseId === currentRound.courseId);
+  if (mode === "course") {
+    // バッチ13改訂: 「同じコース」はfacilityId+前半・後半の組み合わせで判定する
+    // (旧courseIdだけで見ると、付け替え後のラウンドで一致しなくなるため)。
+    // facilityIdが無い想定外のデータのための保険として、courseIdでの一致にも対応する。
+    if (currentRound.facilityId) {
+      return complete.filter((r) => r.facilityId === currentRound.facilityId
+        && r.frontLoopId === currentRound.frontLoopId && r.backLoopId === currentRound.backLoopId);
+    }
+    return complete.filter((r) => r.courseId === currentRound.courseId);
+  }
   if (mode === "best") {
     if (!complete.length) return [];
     let best = complete[0], bestScore = roundTotals(activeHoles(best)).score;

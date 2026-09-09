@@ -4,7 +4,7 @@
 // 【注意】html/css/jsのいずれかを変更・追加したら CACHE_VERSION を必ず連番で上げること。
 // 新規ファイルを追加したときは、下の PRECACHE_URLS にも忘れず追記すること
 // (js/ css/ 配下の実ファイル一覧と定期的に突き合わせて漏れがないか確認する)。
-const CACHE_VERSION = "golf-log-v10";
+const CACHE_VERSION = "golf-log-v11";
 const PRECACHE_URLS = [
   "./",
   "index.html",
