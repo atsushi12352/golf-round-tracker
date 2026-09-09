@@ -1,6 +1,21 @@
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("service-worker.js").catch(() => {});
+    navigator.serviceWorker.register("service-worker.js").then((reg) => {
+      // ブラウザ標準の更新チェックは間隔が長く(特にホーム画面追加のPWAで顕著)、
+      // 新しいバージョンをデプロイしても古いタブ・古いホーム画面アプリがずっと
+      // 気づかないことがある。読み込みのたびに明示的に更新チェックさせる。
+      reg.update().catch(() => {});
+    }).catch(() => {});
+
+    // 新しいService Workerが有効化された(=更新が適用された)ら、次のfetchから
+    // 新しいコードで動くよう自動で1回だけ再読み込みする(skipWaiting/clients.claim
+    // と対になる仕組み。多重リロードを防ぐためrefreshingフラグでガードする)。
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (refreshing) return;
+      refreshing = true;
+      location.reload();
+    });
   });
 }
 
