@@ -1,4 +1,4 @@
-import { getRound, saveRound, deleteRound, getSettings, getCourse, saveCourse } from "./db.js";
+import { getRound, saveRound, deleteRound, getSettings, getCourse, saveCourse, getLoop } from "./db.js";
 import { PUTT_DISTS, LIES } from "./clubs.js";
 import { inferLie, inferPuttDist, playedHoleCount, activeHoles, roundTotals } from "./stats.js";
 import { scorecardBodyHTML, scorecardTotalRowHTML, scorecardLegendHTML } from "./scorecardView.js";
@@ -14,6 +14,11 @@ import { scorecardBodyHTML, scorecardTotalRowHTML, scorecardLegendHTML } from ".
 
   const settings = await getSettings();
   const course = round.courseId ? await getCourse(round.courseId) : null;
+  // バッチ14: ⋯のスコアカード見出しを実コース名にするため、前半・後半のLoop名を先に引いておく
+  const [frontLoop, backLoop] = await Promise.all([getLoop(round.frontLoopId), getLoop(round.backLoopId)]);
+  const scorecardLoopNames = {};
+  if (frontLoop) scorecardLoopNames[frontLoop.id] = frontLoop.name;
+  if (backLoop) scorecardLoopNames[backLoop.id] = backLoop.name;
 
   let holeNum = parseInt(params.get("hole"), 10);
   if (!holeNum || holeNum < 1) holeNum = playedHoleCount(round) + 1;
@@ -426,7 +431,7 @@ import { scorecardBodyHTML, scorecardTotalRowHTML, scorecardLegendHTML } from ".
      round.holes は直前ホールまで保存済みの内容がそのまま入っているので、DBの再読込は不要。 */
   $("openScorecardBtn").addEventListener("click", () => {
     $("menuOverlay").classList.remove("show");
-    const { html, sc } = scorecardBodyHTML(round);
+    const { html, sc } = scorecardBodyHTML(round, scorecardLoopNames);
     $("scorecardBody").innerHTML = html;
     $("scorecardTotalRow").innerHTML = scorecardTotalRowHTML(sc);
     $("scorecardLegend").innerHTML = scorecardLegendHTML();

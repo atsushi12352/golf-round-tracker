@@ -605,15 +605,21 @@ function scorecardBlock(holes, played, offset, label) {
   };
 }
 
-export function computeScorecard(round) {
+// loopNames(バッチ14、任意): { [loopId]: "摩周コース" などの実名 } のマップ。
+// 渡されなかった/該当が無いときは旧来どおりOUT/IN表示にフォールバックする。
+export function computeScorecard(round, loopNames) {
   const holes = round.holes;
   const played = playedHoleCount(round);
   const frontHoles = holes.slice(0, 9);
   const backHoles = holes.slice(9, 18);
-  const frontLabel = frontHoles.length && frontHoles[0].number <= 9 ? "OUT" : "IN";
-  const backLabel = frontLabel === "OUT" ? "IN" : "OUT";
-  const front = scorecardBlock(frontHoles, played, 0, frontLabel);
-  const back = scorecardBlock(backHoles, played, 9, backLabel);
+  function labelFor(hs, fallback) {
+    const lid = hs.length && hs[0].loopId;
+    return (loopNames && lid && loopNames[lid]) || fallback;
+  }
+  const frontFallback = frontHoles.length && frontHoles[0].number <= 9 ? "OUT" : "IN";
+  const backFallback = frontFallback === "OUT" ? "IN" : "OUT";
+  const front = scorecardBlock(frontHoles, played, 0, labelFor(frontHoles, frontFallback));
+  const back = scorecardBlock(backHoles, played, 9, labelFor(backHoles, backFallback));
   const totalScore = played ? (front.scoreTotal || 0) + (back.scoreTotal || 0) : null;
   const totalPutts = played ? (front.puttTotal || 0) + (back.puttTotal || 0) : null;
   const parSoFar = holes.slice(0, played).reduce((a, h) => a + h.par, 0);
@@ -707,17 +713,23 @@ export function compareKpiValues(rounds, kpiIds) {
    6-1: 既定では18ホール完了したラウンドのみを対象にする(9ホールラウンドが
    18ホールラウンドと同じ重みで平均・ベスト・推移に混ざるのを防ぐ)。
    バッチ8: 絞り込み行「コース/ティー/ラウンド(18Hのみ既定/すべて)」を
-   opts = { roundFilter, courseId, tee } として渡す。いずれも既定は「すべて」
-   (roundFilterのみ既定"18")。 */
-export function dashboardSummary(allRounds, courses, opts) {
+   opts = { roundFilter, tee } として渡す。いずれも既定は「すべて」
+   (roundFilterのみ既定"18")。
+   バッチ14: 「コース」絞り込みを「ゴルフ場(facilityId)」+任意の
+   「コース9ホール(loopId)」に切り替えた。loopIdでの絞り込みは、そのLoopを
+   前半・後半どちらで回ったラウンドも対象にする(frontLoopId/backLoopIdの
+   どちらかが一致すればよい)。 */
+export function dashboardSummary(allRounds, loops, opts) {
   const roundFilter = (opts && opts.roundFilter) || "18";
-  const courseFilter = (opts && opts.courseId) || "all";
+  const facilityFilter = (opts && opts.facilityId) || "all";
+  const loopFilter = (opts && opts.loopId) || "all";
   const teeFilter = (opts && opts.tee) || "all";
   const kpiIds = (opts && opts.kpiIds && opts.kpiIds.length === 9) ? opts.kpiIds : DEFAULT_KPIS;
   const rounds = allRounds
     .filter((r) => r.complete)
     .filter((r) => roundFilter === "all" || playedHoleCount(r) === 18)
-    .filter((r) => courseFilter === "all" || r.courseId === courseFilter)
+    .filter((r) => facilityFilter === "all" || r.facilityId === facilityFilter)
+    .filter((r) => loopFilter === "all" || r.frontLoopId === loopFilter || r.backLoopId === loopFilter)
     .filter((r) => teeFilter === "all" || r.tee === teeFilter)
     .slice()
     .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
@@ -753,20 +765,23 @@ export function dashboardSummary(allRounds, courses, opts) {
   const allHoles = rounds.flatMap((r) => activeHoles(r));
   const typeAverages = holeTypeAverages(allHoles);
 
-  // コース別・ホール別
-  const courseMap = {};
-  rounds.forEach((r) => { (courseMap[r.courseId] = courseMap[r.courseId] || []).push(r); });
-  const courseStats = (courses || []).filter((c) => courseMap[c.id]).map((c) => {
-    const crounds = courseMap[c.id];
-    const avgs = c.pars.map((par, i) => {
-      const diffs = crounds.map((r) => {
-        // IN/OUTどちらのスタートでも実ホール番号で突き合わせる(プレー順の配列位置には依存しない)
-        const h = activeHoles(r).find((hh) => hh.number === i + 1);
-        return h ? holeStats(h).score - h.par : null;
-      }).filter((v) => v !== null);
-      return diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;
+  // バッチ14: ゴルフ場→コース(9ホール)の2段階。同じLoopは前半で回っても
+  // 後半で回っても合算する(loopId+loopHoleで突き合わせる。これが今回の核心)。
+  const facilityIds = [...new Set(rounds.map((r) => r.facilityId).filter(Boolean))];
+  const loopStats = facilityIds.map((facilityId) => {
+    const frounds = rounds.filter((r) => r.facilityId === facilityId);
+    const usedLoopIds = new Set();
+    frounds.forEach((r) => { if (r.frontLoopId) usedLoopIds.add(r.frontLoopId); if (r.backLoopId) usedLoopIds.add(r.backLoopId); });
+    const facLoops = (loops || []).filter((l) => l.facilityId === facilityId && usedLoopIds.has(l.id)).map((loop) => {
+      const loopRoundCount = frounds.filter((r) => r.frontLoopId === loop.id || r.backLoopId === loop.id).length;
+      const holesForLoop = frounds.flatMap((r) => activeHoles(r)).filter((h) => h.loopId === loop.id);
+      const avgs = loop.pars.map((par, i) => {
+        const diffs = holesForLoop.filter((h) => h.loopHole === i + 1).map((h) => holeStats(h).score - h.par);
+        return diffs.length ? diffs.reduce((a, b) => a + b, 0) / diffs.length : null;
+      });
+      return { loop, rounds: loopRoundCount, avgs };
     });
-    return { course: c, rounds: crounds.length, avgs };
+    return { facilityId, loops: facLoops };
   });
 
   // ヒートマップ(全期間・クラブ別)
@@ -781,7 +796,7 @@ export function dashboardSummary(allRounds, courses, opts) {
     avgRecent3: recent3.length ? recent3.reduce((a, r) => a + r.score, 0) / recent3.length : null,
     best: scores.length ? Math.min(...scores) : null,
     avgAll: scores.length ? scores.reduce((a, b) => a + b, 0) / scores.length : null,
-    kpis, typeAverages, courseStats, byClub, shotShots, puttShots,
+    kpis, typeAverages, loopStats, byClub, shotShots, puttShots,
     scoreDist: scoreDistribution(allHoles),
     distancePutts: distancePuttStats(allHoles)
   };

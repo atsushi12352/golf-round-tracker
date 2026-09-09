@@ -1,4 +1,4 @@
-import { getRound, getCourse } from "./db.js";
+import { getRound, getCourse, getFacility, getLoop } from "./db.js";
 import { playedHoleCount } from "./stats.js";
 import { scorecardBodyHTML, scorecardTotalRowHTML, scorecardLegendHTML } from "./scorecardView.js";
 
@@ -15,12 +15,20 @@ function formatDateJP(iso) {
   if (!roundId) { location.href = "index.html"; return; }
   const round = await getRound(roundId);
   if (!round) { location.href = "index.html"; return; }
-  const course = round.courseId ? await getCourse(round.courseId) : null;
+  // バッチ14: ヘッダーはゴルフ場名(facilityId)を使う。旧courseIdしか無い(=まだ
+  // 移行していない想定外の)データのための保険としてcourseNameにもフォールバックする。
+  const [facility, frontLoop, backLoop, course] = await Promise.all([
+    getFacility(round.facilityId), getLoop(round.frontLoopId), getLoop(round.backLoopId),
+    round.courseId ? getCourse(round.courseId) : null
+  ]);
+  const loopNames = {};
+  if (frontLoop) loopNames[frontLoop.id] = frontLoop.name;
+  if (backLoop) loopNames[backLoop.id] = backLoop.name;
 
   $("headerDate").textContent = formatDateJP(round.date);
-  $("headerCourse").textContent = `${course ? course.name : "コース不明"}・${round.tee}ティー`;
+  $("headerCourse").textContent = `${facility ? facility.name : (course ? course.name : "コース不明")}・${round.tee}ティー`;
 
-  const { html, sc } = scorecardBodyHTML(round);
+  const { html, sc } = scorecardBodyHTML(round, loopNames);
   $("scorecardBody").innerHTML = html;
   $("scorecardTotalRow").innerHTML = scorecardTotalRowHTML(sc);
   $("scorecardLegend").innerHTML = scorecardLegendHTML();

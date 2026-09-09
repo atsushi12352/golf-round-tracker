@@ -1,4 +1,4 @@
-import { getRound, getCourse, getCourses, getRounds, getSettings, saveRound, saveCourse, deleteRound } from "./db.js";
+import { getRound, getCourse, getCourses, getRounds, getSettings, saveRound, saveCourse, deleteRound, getFacility, getLoop } from "./db.js";
 import {
   computeReview, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS, activeHoles,
   build13Heat, heat13Total, heatmap13InsightHTML, compareRoundsFor, compareKpiValues, DIST_RAMP
@@ -22,6 +22,18 @@ function renderScoreDist(dist, barEl, legendEl) {
     item.innerHTML = `<i style="background:${DIST_RAMP[i]}"></i>${d.label} <b>${d.n}H</b>(${d.pct}%)`;
     legendEl.appendChild(item);
   });
+}
+
+// バッチ14: ヘッダーの表記を「ゴルフ場名 前半コース→後半コース・ティー」にする
+// (同じコースを前半・後半とも回った場合は矢印を省く)。facility/loopが引けない
+// (未移行データ等)ときは旧来のコース名表示にフォールバックする。
+function facilityHeaderText(facility, frontLoop, backLoop, tee, course) {
+  if (facility && frontLoop && backLoop) {
+    const loopPart = frontLoop.id === backLoop.id ? frontLoop.name : `${frontLoop.name}→${backLoop.name}`;
+    return `${facility.name} ${loopPart}・${tee}ティー`;
+  }
+  if (course) return `${course.name}・${tee}ティー`;
+  return "コース不明";
 }
 
 function formatDateJP(iso) {
@@ -51,11 +63,14 @@ const COMPARE_LABELS = { recent5: "直近5R平均", all: "全期間平均", best
   const round = await getRound(roundId);
   if (!round) { location.href = "index.html"; return; }
 
-  const [course, settings, allCourses, allRounds] = await Promise.all([getCourse(round.courseId), getSettings(), getCourses(), getRounds()]);
+  const [course, settings, allCourses, allRounds, facility, frontLoop, backLoop] = await Promise.all([
+    getCourse(round.courseId), getSettings(), getCourses(), getRounds(),
+    getFacility(round.facilityId), getLoop(round.frontLoopId), getLoop(round.backLoopId)
+  ]);
   const rv = computeReview(round, settings.kpis);
 
   $("headerDate").textContent = formatDateJP(round.date);
-  $("courseNameBtn").textContent = course ? course.name : "コース不明";
+  $("courseNameBtn").textContent = facilityHeaderText(facility, frontLoop, backLoop, round.tee, course);
   $("heroScore").textContent = rv.total;
   $("heroToPar").textContent = (rv.toPar >= 0 ? "+" : "") + rv.toPar + ` (Par${rv.parTotal})`;
   [`パット ${rv.putts}`, `OB ${rv.obTotal}`, `3パット ${rv.threePutts}回`].forEach((t) => {

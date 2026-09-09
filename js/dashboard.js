@@ -1,4 +1,4 @@
-import { getRounds, getCourses, getSettings } from "./db.js";
+import { getRounds, getFacilities, getLoops, getSettings } from "./db.js";
 import { TEES } from "./clubs.js";
 import {
   dashboardSummary, buildHeatMatrix, matrixCount, heatmapInsightHTML, RAMP, RAMP_RED, CLUB_GROUPS,
@@ -25,19 +25,21 @@ function renderScoreDist(dist, barEl, legendEl) {
 }
 
 // バッチ8: 絞り込み状態の保存(次回開いたときも維持する)
+// バッチ14: courseId絞り込みをfacilityId+任意のloopIdに置き換えた。
 const FILTER_KEY = "golf-log:dashboard-filter";
 function loadFilter() {
   try {
     const raw = localStorage.getItem(FILTER_KEY);
-    if (!raw) return { courseId: "all", tee: "all", roundFilter: "18" };
+    if (!raw) return { facilityId: "all", loopId: "all", tee: "all", roundFilter: "18" };
     const v = JSON.parse(raw) || {};
     return {
-      courseId: v.courseId || "all",
+      facilityId: v.facilityId || "all",
+      loopId: v.loopId || "all",
       tee: v.tee || "all",
       roundFilter: v.roundFilter === "all" ? "all" : "18"
     };
   } catch (e) {
-    return { courseId: "all", tee: "all", roundFilter: "18" };
+    return { facilityId: "all", loopId: "all", tee: "all", roundFilter: "18" };
   }
 }
 function saveFilter(f) {
@@ -46,8 +48,9 @@ function saveFilter(f) {
 
 (async function () {
   const $ = (id) => document.getElementById(id);
-  const [rounds, courses, settings] = await Promise.all([getRounds(), getCourses(), getSettings()]);
+  const [rounds, facilities, loops, settings] = await Promise.all([getRounds(), getFacilities(), getLoops(), getSettings()]);
   const completeRounds = rounds.filter((r) => r.complete);
+  const facilityName = (id) => (facilities.find((f) => f.id === id) || {}).name || "ゴルフ場不明";
 
   if (completeRounds.length === 0) {
     $("filterBar").style.display = "none";
@@ -59,22 +62,46 @@ function saveFilter(f) {
 
   /* ---------- 絞り込み行のセットアップ(記録に存在するものだけ選択肢に出す) ---------- */
   const filter = loadFilter();
-  const courseIdsWithRounds = new Set(completeRounds.map((r) => r.courseId));
-  const courseOptions = courses.filter((c) => courseIdsWithRounds.has(c.id));
+  const facilityIdsWithRounds = new Set(completeRounds.map((r) => r.facilityId).filter(Boolean));
+  const facilityOptions = facilities.filter((f) => facilityIdsWithRounds.has(f.id));
   const teeOptions = TEES.filter((t) => completeRounds.some((r) => r.tee === t));
-  if (!courseOptions.some((c) => c.id === filter.courseId)) filter.courseId = "all";
+  if (!facilityOptions.some((f) => f.id === filter.facilityId)) filter.facilityId = "all";
   if (!teeOptions.includes(filter.tee)) filter.tee = "all";
 
-  const courseSel = $("filterCourse"), teeSel = $("filterTee"), roundSel = $("filterRound");
-  courseSel.innerHTML = '<option value="all">すべて</option>'
-    + courseOptions.map((c) => `<option value="${c.id}">${c.name}</option>`).join("");
+  const facilitySel = $("filterFacility"), loopSel = $("filterLoop"), teeSel = $("filterTee"), roundSel = $("filterRound");
+  facilitySel.innerHTML = '<option value="all">すべて</option>'
+    + facilityOptions.map((f) => `<option value="${f.id}">${f.name}</option>`).join("");
   teeSel.innerHTML = '<option value="all">すべて</option>'
     + teeOptions.map((t) => `<option value="${t}">${t}</option>`).join("");
-  courseSel.value = filter.courseId;
+  facilitySel.value = filter.facilityId;
   teeSel.value = filter.tee;
   roundSel.value = filter.roundFilter;
 
-  courseSel.addEventListener("change", () => { filter.courseId = courseSel.value; saveFilter(filter); renderAll(); });
+  // コース(9ホール)の選択肢は、選ばれているゴルフ場(未選択なら全ゴルフ場)の中で
+  // 実際に記録があるLoopだけを出す。ゴルフ場を変えたら選び直しになる。
+  function loopOptionsFor(facilityId) {
+    const relevant = completeRounds.filter((r) => facilityId === "all" || r.facilityId === facilityId);
+    const usedIds = new Set();
+    relevant.forEach((r) => { if (r.frontLoopId) usedIds.add(r.frontLoopId); if (r.backLoopId) usedIds.add(r.backLoopId); });
+    return loops.filter((l) => usedIds.has(l.id) && (facilityId === "all" || l.facilityId === facilityId));
+  }
+  function renderLoopOptions() {
+    const opts = loopOptionsFor(filter.facilityId);
+    if (!opts.some((l) => l.id === filter.loopId)) filter.loopId = "all";
+    loopSel.innerHTML = '<option value="all">すべて</option>'
+      + opts.map((l) => `<option value="${l.id}">${facilityName(l.facilityId)} ${l.name}</option>`).join("");
+    loopSel.value = filter.loopId;
+  }
+  renderLoopOptions();
+
+  facilitySel.addEventListener("change", () => {
+    filter.facilityId = facilitySel.value;
+    filter.loopId = "all";
+    renderLoopOptions();
+    saveFilter(filter);
+    renderAll();
+  });
+  loopSel.addEventListener("change", () => { filter.loopId = loopSel.value; saveFilter(filter); renderAll(); });
   teeSel.addEventListener("change", () => { filter.tee = teeSel.value; saveFilter(filter); renderAll(); });
   roundSel.addEventListener("change", () => { filter.roundFilter = roundSel.value; saveFilter(filter); renderAll(); });
 
@@ -200,7 +227,7 @@ function saveFilter(f) {
 
   /* ---------- 絞り込み結果に応じてダッシュボード全体を再描画 ---------- */
   function renderAll() {
-    const d = dashboardSummary(rounds, courses, { ...filter, kpiIds: settings.kpis });
+    const d = dashboardSummary(rounds, loops, { ...filter, kpiIds: settings.kpis });
 
     document.querySelectorAll(".filter-count").forEach((el) => {
       el.textContent = d.perRound.length ? `該当${d.perRound.length}ラウンド` : "";
@@ -263,50 +290,84 @@ function saveFilter(f) {
       $("typeGrid").appendChild(el);
     });
 
-    /* ---------- コース別・ホール別 ---------- */
-    let currentCourseIdx = 0;
-    function renderCourse() {
-      const c = d.courseStats[currentCourseIdx];
-      const holes = $("courseHoles");
-      holes.innerHTML = "";
-      const known = c.avgs.filter((a) => a !== null);
+    /* ---------- バッチ14: コース別・ホール別(ゴルフ場→コース(9ホール)の2段階) ----------
+       同じLoopは前半で回っても後半で回っても合算されている(d.loopStatsの時点でloopId+
+       loopHoleで突き合わせ済み)。ここではその集計結果をタブで選んで表示するだけ。 */
+    let currentFacilityIdx = 0, currentLoopIdx = 0;
+    function renderLoopTiles() {
+      const fac = d.loopStats[currentFacilityIdx];
+      const loopEntry = fac && fac.loops[currentLoopIdx];
+      const holesEl = $("courseHoles");
+      holesEl.innerHTML = "";
+      if (!loopEntry) {
+        $("courseInsight").textContent = "";
+        return;
+      }
+      const known = loopEntry.avgs.filter((a) => a !== null);
       const maxAvg = known.length ? Math.max(...known) : null;
       const minAvg = known.length ? Math.min(...known) : null;
-      c.avgs.forEach((a, i) => {
+      loopEntry.avgs.forEach((a, i) => {
         const el = document.createElement("div");
         const worst = a !== null && maxAvg !== null && a >= maxAvg - 0.15;
         const best = a !== null && minAvg !== null && a <= minAvg + 0.15;
         el.className = "hole-tile" + (worst ? " worst" : best ? " best" : "");
         const avgText = a === null ? "-" : (a >= 0 ? "+" : "") + a.toFixed(1);
-        el.innerHTML = `<div class="no">${i + 1} <span style="opacity:.7">P${c.course.pars[i]}</span></div><div class="avg">${avgText}</div>`;
-        holes.appendChild(el);
+        el.innerHTML = `<div class="no">${i + 1} <span style="opacity:.7">P${loopEntry.loop.pars[i]}</span></div><div class="avg">${avgText}</div>`;
+        holesEl.appendChild(el);
       });
       if (maxAvg !== null) {
-        const wi = c.avgs.indexOf(maxAvg);
-        $("courseInsight").innerHTML = `要対策は<b>${wi + 1}番(Par${c.course.pars[wi]})</b>の平均+${maxAvg.toFixed(1)}。`;
+        const wi = loopEntry.avgs.indexOf(maxAvg);
+        $("courseInsight").innerHTML = `要対策は<b>${wi + 1}番(Par${loopEntry.loop.pars[wi]})</b>の平均+${maxAvg.toFixed(1)}。`;
       } else {
         $("courseInsight").textContent = "";
       }
     }
-    const courseRow = $("courseRow");
-    courseRow.innerHTML = "";
-    if (d.courseStats.length === 0) {
+    function renderLoopTabs() {
+      const fac = d.loopStats[currentFacilityIdx];
+      const loopRow = $("loopTabRow");
+      loopRow.innerHTML = "";
+      if (!fac || fac.loops.length === 0) {
+        $("courseHoles").innerHTML = '<div class="empty-state">コースデータがありません。</div>';
+        $("courseInsight").textContent = "";
+        return;
+      }
+      if (currentLoopIdx >= fac.loops.length) currentLoopIdx = 0;
+      fac.loops.forEach((l, i) => {
+        const b = document.createElement("button");
+        b.className = "seg-btn" + (i === currentLoopIdx ? " selected" : "");
+        b.textContent = `${l.loop.name} ×${l.rounds}R`;
+        b.dataset.i = i;
+        b.addEventListener("click", () => {
+          currentLoopIdx = i;
+          Array.prototype.forEach.call(loopRow.children, (x) => x.classList.toggle("selected", +x.dataset.i === i));
+          renderLoopTiles();
+        });
+        loopRow.appendChild(b);
+      });
+      renderLoopTiles();
+    }
+    const facilityTabRow = $("facilityTabRow");
+    facilityTabRow.innerHTML = "";
+    if (d.loopStats.length === 0) {
+      $("loopTabRow").innerHTML = "";
       $("courseHoles").innerHTML = '<div class="empty-state">コースデータがありません。</div>';
       $("courseInsight").textContent = "";
     } else {
-      d.courseStats.forEach((c, i) => {
+      if (currentFacilityIdx >= d.loopStats.length) currentFacilityIdx = 0;
+      d.loopStats.forEach((fac, i) => {
         const b = document.createElement("button");
-        b.className = "seg-btn" + (i === currentCourseIdx ? " selected" : "");
-        b.textContent = `${c.course.name} ×${c.rounds}R`;
+        b.className = "seg-btn" + (i === currentFacilityIdx ? " selected" : "");
+        b.textContent = facilityName(fac.facilityId);
         b.dataset.i = i;
         b.addEventListener("click", () => {
-          currentCourseIdx = i;
-          Array.prototype.forEach.call(courseRow.children, (x) => x.classList.toggle("selected", +x.dataset.i === i));
-          renderCourse();
+          currentFacilityIdx = i;
+          currentLoopIdx = 0;
+          Array.prototype.forEach.call(facilityTabRow.children, (x) => x.classList.toggle("selected", +x.dataset.i === i));
+          renderLoopTabs();
         });
-        courseRow.appendChild(b);
+        facilityTabRow.appendChild(b);
       });
-      renderCourse();
+      renderLoopTabs();
     }
 
     /* ---------- 距離帯別パット(累積) ---------- */

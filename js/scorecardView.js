@@ -29,9 +29,11 @@ function blockHTML(b) {
   return html;
 }
 
-// カード本体(前半・後半の2ブロック)のHTML
-export function scorecardBodyHTML(round) {
-  const sc = computeScorecard(round);
+// カード本体(前半・後半の2ブロック)のHTML。
+// loopNames(バッチ14、任意): { [loopId]: 実コース名 } を渡すとブロック見出しが
+// 実名になる(渡さない/該当が無いときはOUT/IN表示にフォールバック)。
+export function scorecardBodyHTML(round, loopNames) {
+  const sc = computeScorecard(round, loopNames);
   return { html: blockHTML(sc.front) + blockHTML(sc.back), sc };
 }
 

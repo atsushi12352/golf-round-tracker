@@ -181,8 +181,8 @@ svg text { font-family: inherit; }
 .hm-bar-bottom { grid-column: 2 / span 3; grid-row: 5; flex-direction: row; gap: 6px; min-height: 40px; }
 .hm-bar-top .lbl, .hm-bar-bottom .lbl { font-size: 11px; margin: 0; font-weight: 600; }
 
-/* ---- hole tiles(コース別・ホール別) ---- */
-.hole-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 5px; }
+/* ---- hole tiles(コース別・ホール別。バッチ14: 9ホール単位表示に変更) ---- */
+.hole-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px; }
 .hole-tile { background: var(--bg); border-radius: 9px; padding: 7px 2px 6px; text-align: center; }
 .hole-tile .no { font-size: 9px; color: var(--muted); }
 .hole-tile .avg { font-size: 13px; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -523,7 +523,7 @@ header.hole-header {
 
 /* ---- バッチ8: 累積ダッシュボードの絞り込み行 ---- */
 .filter-bar {
-  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+  display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px;
   background: var(--card); border: 1px solid var(--line); border-radius: var(--radius);
   padding: 10px 12px;
 }

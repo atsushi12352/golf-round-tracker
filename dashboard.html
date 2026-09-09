@@ -24,8 +24,12 @@
   <main>
     <div class="filter-bar" id="filterBar">
       <div class="filter-field">
-        <label for="filterCourse">コース</label>
-        <select id="filterCourse"></select>
+        <label for="filterFacility">ゴルフ場</label>
+        <select id="filterFacility"></select>
+      </div>
+      <div class="filter-field">
+        <label for="filterLoop">コース(9ホール)</label>
+        <select id="filterLoop"></select>
       </div>
       <div class="filter-field">
         <label for="filterTee">ティー</label>
@@ -70,7 +74,8 @@
 
       <div class="card">
         <h2>コース別・ホール別 平均の±<small class="filter-count"></small></h2>
-        <div class="seg-row" id="courseRow"></div>
+        <div class="seg-row" id="facilityTabRow"></div>
+        <div class="seg-row" id="loopTabRow" style="margin-top:-4px;"></div>
         <div class="hole-grid" id="courseHoles"></div>
         <div class="hm-insight" id="courseInsight" style="margin-top:10px;"></div>
       </div>
