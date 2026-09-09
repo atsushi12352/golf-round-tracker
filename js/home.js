@@ -1,4 +1,4 @@
-import { getRounds, getCourses } from "./db.js";
+import { getRounds, getCourses, getFacilities, getLoops } from "./db.js";
 import { playedHoleCount, holeStats } from "./stats.js";
 import { daysSinceLastBackup, getLastBackupAt, STALE_DAYS } from "./backup.js";
 
@@ -8,8 +8,25 @@ const UNBACKED_STRONG_THRESHOLD = 3;
 (async function () {
   const $ = (id) => document.getElementById(id);
 
-  const [rounds, courses] = await Promise.all([getRounds(), getCourses()]);
-  const courseName = (id) => (courses.find((c) => c.id === id) || {}).name || "コース不明";
+  const [rounds, courses, facilities, loops] = await Promise.all([getRounds(), getCourses(), getFacilities(), getLoops()]);
+  const courseById = new Map(courses.map((c) => [c.id, c]));
+  const facilityById = new Map(facilities.map((f) => [f.id, f]));
+  const loopById = new Map(loops.map((l) => [l.id, l]));
+  // バッチ13/14でFacility/Loopモデルに移行後、review.htmlでのコース付け替えなどにより
+  // 旧courseIdが無い(またはcourseIdが指す旧Courseが実体と一致しない)ラウンドが
+  // 「コース不明」になっていた不具合の修正。review.jsのfacilityHeaderText()と同じ
+  // 優先順位(facility+frontLoop+backLoopが引ければそちらを優先)で表示する。
+  const courseName = (r) => {
+    const facility = facilityById.get(r.facilityId);
+    const frontLoop = loopById.get(r.frontLoopId);
+    const backLoop = loopById.get(r.backLoopId);
+    if (facility && frontLoop && backLoop) {
+      return frontLoop.id === backLoop.id ? `${facility.name} ${frontLoop.name}` : `${facility.name} ${frontLoop.name}→${backLoop.name}`;
+    }
+    const course = courseById.get(r.courseId);
+    if (course) return course.name;
+    return "コース不明";
+  };
 
   const staleDays = daysSinceLastBackup();
   const lastBackupAt = getLastBackupAt();
@@ -46,7 +63,7 @@ const UNBACKED_STRONG_THRESHOLD = 3;
       a.innerHTML = `
         <div class="rc-main">
           <div class="date">${r.date} ・ ${r.tee}ティー</div>
-          <div class="course">${courseName(r.courseId)}</div>
+          <div class="course">${courseName(r)}</div>
           ${r.complete ? "" : `<div class="status">途中(${played}/18)・タップして再開</div>`}
         </div>
         <div class="rc-score">
